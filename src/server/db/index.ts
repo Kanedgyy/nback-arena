@@ -2,10 +2,20 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
-// Инициализация только если переменная окружения есть
-// Для Vercel build это ок, т.к. переменные доступны в runtime
-const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
+// Тип базы данных
+export type DbClient = ReturnType<typeof drizzle<typeof schema>>;
 
-export const db = sql ? drizzle(sql, { schema }) : ({} as ReturnType<typeof drizzle>);
+// Создаём клиент с явной типизацией
+function createDbClient(): DbClient {
+  if (!process.env.DATABASE_URL) {
+    // Во время build переменная может отсутствовать - создаём заглушку
+    // Но в runtime она всегда должна быть
+    return {} as DbClient;
+  }
+  const sql = neon(process.env.DATABASE_URL);
+  return drizzle(sql, { schema });
+}
+
+export const db = createDbClient();
 
 export * from './schema';
