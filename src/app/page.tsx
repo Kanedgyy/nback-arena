@@ -39,6 +39,17 @@ export default function Home() {
     },
   });
 
+  const createRoomMutation = trpc.room.create.useMutation({
+    onSuccess: (data) => {
+      router.push(`/room/${data.id}`);
+    },
+    onError: (error) => {
+      console.error('Create room error:', error);
+      setError(error.message || 'Failed to create room');
+      setLoading(false);
+    },
+  });
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -51,14 +62,17 @@ export default function Home() {
     }
   };
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!roomName.trim()) {
       setError('Please enter a room name');
       return;
     }
-    // Временно пропускаем auth
-    const mockRoomId = crypto.randomUUID();
-    router.push(`/room/${mockRoomId}`);
+    setLoading(true);
+    createRoomMutation.mutate({
+      name: roomName,
+      nValue,
+      maxPlayers: 4,
+    });
   };
 
   return (
@@ -154,7 +168,7 @@ export default function Home() {
         </div>
 
         <div className="border-t dark:border-gray-700 pt-8">
-          <h2 className="text-xl font-semibold mb-4">Create a Room (Skip Auth)</h2>
+          <h2 className="text-xl font-semibold mb-4">Create a Room</h2>
           
           <div className="space-y-4">
             <div>
@@ -185,8 +199,9 @@ export default function Home() {
             <button
               onClick={handleCreateRoom}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-all"
+              disabled={loading || createRoomMutation.isPending}
             >
-              Create Room
+              {(loading || createRoomMutation.isPending) ? 'Loading...' : 'Create Room'}
             </button>
           </div>
         </div>
