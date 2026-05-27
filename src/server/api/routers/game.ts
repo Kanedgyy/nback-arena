@@ -14,7 +14,8 @@ import {
   checkSpeedIncrease, 
   advanceStimulus, 
   resetPlayerResponses,
-  type Stimulus
+  type Stimulus,
+  type RoomState
 } from '@/server/game/nback-engine';
 
 // In-memory room states (for Vercel serverless, we'll use polling)

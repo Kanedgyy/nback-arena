@@ -15,14 +15,29 @@ export const roomRouter = router({
       try {
         console.log('Creating room:', input);
         
+        // Генерируем UUID для hostId
+        const hostId = crypto.randomUUID();
+        
         const newRoom = await db.insert(rooms).values({
           name: input.name,
+          hostId: hostId,
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
           isStarted: false,
         }).returning().then(r => r[0]);
 
         console.log('Room created:', newRoom.id);
+
+        // Инициализируем игровое состояние
+        const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
+        const roomState = createRoomState(newRoom.id, {
+          nValue: input.nValue,
+        });
+        addPlayer(roomState, hostId, false, 0);
+        
+        // Сохраняем состояние игры
+        const { setRoomState } = await import('@/server/api/routers/game');
+        setRoomState(newRoom.id, roomState);
 
         return { id: newRoom.id, name: newRoom.name };
       } catch (error) {
@@ -64,6 +79,13 @@ export const roomRouter = router({
           mistakes: 0,
           isReady: false,
         });
+
+        // Добавляем игрока в состояние игры
+        const { getRoomState, addPlayer } = await import('@/server/api/routers/game');
+        const roomState = getRoomState(input.sessionId);
+        if (roomState) {
+          addPlayer(roomState, playerUserId, false, 0);
+        }
 
         return { id: room[0].id, name: room[0].name };
       } catch (error) {
