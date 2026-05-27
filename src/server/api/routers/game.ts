@@ -3,7 +3,6 @@ import { router, publicProcedure } from '../trpc';
 import { rooms, roomPlayers, gameResults } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { db } from '@/server/db';
-import type { RoomState } from '@/server/game/nback-engine';
 import { 
   createRoomState, 
   addPlayer, 
@@ -14,8 +13,8 @@ import {
   checkSpeedIncrease, 
   advanceStimulus, 
   resetPlayerResponses,
-  type Stimulus,
-  type RoomState
+  type RoomState,
+  type Stimulus
 } from '@/server/game/nback-engine';
 
 // In-memory room states (for Vercel serverless, we'll use polling)
