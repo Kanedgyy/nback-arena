@@ -26,7 +26,7 @@ export const rooms = pgTable('rooms', {
 export const roomPlayers = pgTable('room_players', {
   id: uuid('id').primaryKey().defaultRandom(),
   roomId: uuid('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   score: integer('score').notNull().default(0),
   mistakes: integer('mistakes').notNull().default(0),
   isReady: boolean('is_ready').notNull().default(false),

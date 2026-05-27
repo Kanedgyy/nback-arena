@@ -57,6 +57,37 @@ export default function RoomPage() {
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
       setCurrentIndex(data.currentIndex);
+      setCurrentStimulus(data.stimulus ? (data.stimulus as any).position : null);
+      setSpeedLevel(data.speedLevel);
+
+      if (data.isComplete) {
+        setIsGameRunning(false);
+      }
+    },
+  });
+
+  // Автоматическое переключение стимулов
+  useEffect(() => {
+    if (!isGameRunning) return;
+
+    const interval = setInterval(() => {
+      const playerId = room?.players[0]?.userId;
+      if (!playerId) return;
+
+      // Если игрок ещё не ответил - пропускаем
+      submitAnswerMutation.mutate({ roomId, playerId, answer: false });
+      
+      setTimeout(() => {
+        nextStimulusMutation.mutate({ roomId });
+      }, 100);
+    }, 2000); // Каждые 2 секунды
+
+    return () => clearInterval(interval);
+  }, [isGameRunning, room, roomId]);
+
+  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
+    onSuccess: (data) => {
+      setCurrentIndex(data.currentIndex);
       setCurrentStimulus(data.stimulus?.position ?? null);
       setSpeedLevel(data.speedLevel);
 
