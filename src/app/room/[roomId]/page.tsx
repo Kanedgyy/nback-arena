@@ -22,6 +22,7 @@ export default function RoomPage() {
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [hasAnswered, setHasAnswered] = useState(false);
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
@@ -32,6 +33,7 @@ export default function RoomPage() {
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
+      setHasAnswered(false);
     },
   });
 
@@ -41,6 +43,8 @@ export default function RoomPage() {
       setMistakes(data.mistakes);
       if (data.correct) {
         setCorrectAnswers(prev => prev + 1);
+      } else {
+        setMistakes(prev => prev + 1);
       }
       
       if (data.speedIncreased) {
@@ -59,6 +63,7 @@ export default function RoomPage() {
       setCurrentIndex(data.currentIndex);
       setCurrentStimulus(data.stimulus ? (data.stimulus as any).position : null);
       setSpeedLevel(data.speedLevel);
+      setHasAnswered(false);
 
       if (data.isComplete) {
         setIsGameRunning(false);
@@ -67,33 +72,30 @@ export default function RoomPage() {
   });
 
   const handleAnswer = (answer: boolean) => {
-    if (!room) return;
+    if (!room || hasAnswered) return;
     
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
+    setHasAnswered(true);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
+    
+    // Переключаем стимул через 1.5 секунды после ответа
+    setTimeout(() => {
+      nextStimulusMutation.mutate({ roomId });
+    }, 1500);
   };
 
-  // Автоматическое переключение стимулов
+  // Автоматическое переключение стимулов (без отправки ответа)
   useEffect(() => {
-    if (!isGameRunning) return;
+    if (!isGameRunning || hasAnswered) return;
 
     const interval = setInterval(() => {
       nextStimulusMutation.mutate({ roomId });
-    }, 2000); // Каждые 2 секунды
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [isGameRunning, roomId]);
-
-  useEffect(() => {
-    if (gameState) {
-      setCurrentIndex(gameState.currentIndex);
-      setCurrentStimulus(gameState.currentStimulus ?? null);
-      setSpeedLevel(gameState.speedLevel);
-      setIsGameRunning(gameState.isRunning);
-    }
-  }, [gameState]);
+  }, [isGameRunning, roomId, hasAnswered]);
 
   if (!room) {
     return (
@@ -169,8 +171,14 @@ export default function RoomPage() {
 
               <GameControls
                 onSubmitAnswer={handleAnswer}
-                isGameRunning={isGameRunning}
+                isGameRunning={isGameRunning && !hasAnswered}
               />
+              
+              {hasAnswered && (
+                <p className="text-center text-yellow-300 text-sm">
+                  Ответ записан. Ждём следующий стимул...
+                </p>
+              )}
             </div>
 
             <div className="space-y-6">
