@@ -28,14 +28,18 @@ export default function Home() {
     setLoading(true);
 
     try {
+      console.log('Attempting auth:', { isLoginMode, email, password: '***' });
+      
       if (isLoginMode) {
         const result = await signIn.email({
           email,
           password,
           callbackURL: '/dashboard',
         });
+        console.log('Sign in result:', result);
+        
         if (result.error) {
-          setError(result.error.message || 'Login failed');
+          setError(result.error.message || `Sign in failed: ${result.error.statusText || 'Unknown error'}`);
         } else {
           router.push('/dashboard');
         }
@@ -46,14 +50,17 @@ export default function Home() {
           name,
           callbackURL: '/dashboard',
         });
+        console.log('Sign up result:', result);
+        
         if (result.error) {
-          setError(result.error.message || 'Sign up failed');
+          setError(result.error.message || `Sign up failed: ${result.error.statusText || 'Unknown error'}`);
         } else {
           router.push('/dashboard');
         }
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      console.error('Auth error:', err);
+      setError(`An error occurred: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`);
     } finally {
       setLoading(false);
     }
