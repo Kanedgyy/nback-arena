@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
+import { sql } from 'drizzle-orm';
 import * as schema from './schema';
 
 // Тип базы данных
@@ -12,10 +13,11 @@ function createDbClient(): DbClient {
     // Но в runtime она всегда должна быть
     return {} as DbClient;
   }
-  const sql = neon(process.env.DATABASE_URL);
-  return drizzle(sql, { schema });
+  const neonSql = neon(process.env.DATABASE_URL);
+  return drizzle(neonSql, { schema });
 }
 
 export const db = createDbClient();
+export { sql };
 
 export * from './schema';
