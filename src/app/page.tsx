@@ -14,10 +14,10 @@ export default function Home() {
   const [nValue, setNValue] = useState(2);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [session] = useSession();
+  const { data: session } = useSession();
 
   // Если пользователь уже вошёл, redirect на dashboard
-  if (session.data) {
+  if (session) {
     router.push('/dashboard');
     return null;
   }
@@ -62,7 +62,7 @@ export default function Home() {
   const handleCreateRoom = () => {
     if (!roomName.trim()) return;
     // Если не авторизован, redirect на auth
-    if (!session.data) {
+    if (!session) {
       router.push('/');
       return;
     }
