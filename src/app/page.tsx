@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signUp, signIn, useSession } from '@/lib/auth-client';
+import { trpc } from '@/trpc';
 
 export default function Home() {
   const router = useRouter();
@@ -14,65 +14,41 @@ export default function Home() {
   const [nValue, setNValue] = useState(2);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { data: session } = useSession();
 
-  // Если пользователь уже вошёл, redirect на dashboard
-  if (session) {
-    router.push('/dashboard');
-    return null;
-  }
+  const signUpMutation = trpc.auth.signUp.useMutation({
+    onSuccess: () => {
+      router.push('/dashboard');
+    },
+    onError: (error) => {
+      setError(error.message || 'Sign up failed');
+      setLoading(false);
+    },
+  });
+
+  const signInMutation = trpc.auth.signIn.useMutation({
+    onSuccess: () => {
+      router.push('/dashboard');
+    },
+    onError: (error) => {
+      setError(error.message || 'Sign in failed');
+      setLoading(false);
+    },
+  });
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
-      console.log('Attempting auth:', { isLoginMode, email, password: '***' });
-      
-      if (isLoginMode) {
-        const result = await signIn.email({
-          email,
-          password,
-          callbackURL: '/dashboard',
-        });
-        console.log('Sign in result:', result);
-        
-        if (result.error) {
-          setError(result.error.message || `Sign in failed: ${result.error.statusText || 'Unknown error'}`);
-        } else {
-          router.push('/dashboard');
-        }
-      } else {
-        const result = await signUp.email({
-          email,
-          password,
-          name,
-          callbackURL: '/dashboard',
-        });
-        console.log('Sign up result:', result);
-        
-        if (result.error) {
-          setError(result.error.message || `Sign up failed: ${result.error.statusText || 'Unknown error'}`);
-        } else {
-          router.push('/dashboard');
-        }
-      }
-    } catch (err) {
-      console.error('Auth error:', err);
-      setError(`An error occurred: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`);
-    } finally {
-      setLoading(false);
+    if (isLoginMode) {
+      signInMutation.mutate({ email, password });
+    } else {
+      signUpMutation.mutate({ email, password, name });
     }
   };
 
   const handleCreateRoom = () => {
     if (!roomName.trim()) return;
-    // Если не авторизован, redirect на auth
-    if (!session) {
-      router.push('/');
-      return;
-    }
     const mockRoomId = crypto.randomUUID();
     router.push(`/room/${mockRoomId}`);
   };
@@ -91,7 +67,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Auth Form */}
         <div className="mb-8">
           <div className="flex gap-4 mb-6">
             <button
@@ -159,14 +134,17 @@ export default function Home() {
             <button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-all"
-              disabled={loading}
+              disabled={loading || signUpMutation.isPending || signInMutation.isPending}
             >
-              {loading ? 'Loading...' : isLoginMode ? 'Login' : 'Sign Up'}
+              {(loading || signUpMutation.isPending || signInMutation.isPending) 
+                ? 'Loading...' 
+                : isLoginMode 
+                  ? 'Login' 
+                  : 'Sign Up'}
             </button>
           </form>
         </div>
 
-        {/* Create Room */}
         <div className="border-t dark:border-gray-700 pt-8">
           <h2 className="text-xl font-semibold mb-4">Create a Room</h2>
           
