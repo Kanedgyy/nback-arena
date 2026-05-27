@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { TrpcProvider } from "@/components/TrpcProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -17,8 +18,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className={`${inter.className} h-full`}>{children}</body>
+    <html lang="en">
+      <body className={inter.className}>
+        <TrpcProvider>
+          {children}
+        </TrpcProvider>
+      </body>
     </html>
   );
 }
