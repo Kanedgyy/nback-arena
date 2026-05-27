@@ -128,16 +128,17 @@ export const gameRouter = router({
           const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
           const playerIds = players.map(p => p.userId);
           
-          roomState = createRoomState(input.roomId, {
+          const newRoomState = createRoomState(input.roomId, {
             nValue: room[0].nValue,
           });
           
           playerIds.forEach((playerId) => {
-            addPlayer(roomState, playerId, false, 0);
+            addPlayer(newRoomState, playerId, false, 0);
           });
           
-          roomStates.set(input.roomId, roomState);
-          roomState.isRunning = true;
+          roomStates.set(input.roomId, newRoomState);
+          newRoomState.isRunning = true;
+          roomState = newRoomState;
         }
 
         const result = validateAnswer(roomState, input.playerId, input.answer);
@@ -174,16 +175,17 @@ export const gameRouter = router({
         const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
         const playerIds = players.map(p => p.userId);
         
-        roomState = createRoomState(input.roomId, {
+        const newRoomState = createRoomState(input.roomId, {
           nValue: room[0].nValue,
         });
         
         playerIds.forEach((playerId) => {
-          addPlayer(roomState, playerId, false, 0);
+          addPlayer(newRoomState, playerId, false, 0);
         });
         
-        roomStates.set(input.roomId, roomState);
-        roomState.isRunning = true;
+        roomStates.set(input.roomId, newRoomState);
+        newRoomState.isRunning = true;
+        roomState = newRoomState;
       }
 
       advanceStimulus(roomState);
