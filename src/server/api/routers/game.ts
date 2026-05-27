@@ -155,10 +155,6 @@ export const gameRouter = router({
     }),
 });
 
-      return results;
-    }),
-});
-
 async function saveGameResults(roomState: RoomState) {
   const rankings = getPlayerRankings(roomState);
   
