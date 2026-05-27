@@ -1,141 +1,150 @@
 import { z } from 'zod';
-import { router, protectedProcedure, publicProcedure } from '../trpc';
-import { db } from '../../db';
-import { rooms, roomPlayers, gameResults } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
-import {
-  validateAnswer,
-  advanceStimulus,
-  getCurrentStimulus,
-  getGameProgress,
-  getPlayerRankings,
-  resetPlayerResponses,
-  checkSpeedIncrease,
-  type RoomState,
-} from '../../game/nback-engine';
+import { router, publicProcedure } from '../trpc';
+import { rooms, roomPlayers } from '@/server/db/schema';
+import { eq } from 'drizzle-orm';
+import { db } from '@/server/db';
 
-// In-memory room states
-const roomStates = new Map<string, RoomState>();
+// In-memory room states (for Vercel serverless, we'll use polling)
+const roomStates = new Map<string, import('@/server/game/nback-engine').RoomState>();
 
 export const gameRouter = router({
-  submitAnswer: protectedProcedure
+  start: publicProcedure
     .input(z.object({
-      roomId: z.string().uuid(),
-      answer: z.boolean(), // true = match, false = no match
+      roomId: z.string(),
     }))
-    .mutation(async ({ ctx, input }) => {
-      const roomState = roomStates.get(input.roomId);
-      if (!roomState) {
-        throw new Error('Room state not found');
+    .mutation(async ({ input }) => {
+      try {
+        console.log('Starting game in room:', input.roomId);
+        
+        const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        if (room.length === 0) {
+          throw new Error('Room not found');
+        }
+
+        const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+        if (players.length < 1) {
+          throw new Error('Need at least 1 player to start');
+        }
+
+        // Create room state
+        const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
+        const playerIds = players.map(p => p.userId);
+        const roomState = createRoomState(input.roomId, {
+          nValue: room[0].nValue,
+        });
+        
+        playerIds.forEach((playerId, index) => {
+          addPlayer(roomState, playerId, false, 0);
+        });
+
+        roomStates.set(input.roomId, roomState);
+
+        // Update room status
+        await db.update(rooms).set({ isStarted: true }).where(eq(rooms.id, input.roomId));
+
+        return { 
+          success: true, 
+          grid: roomState.sequence.map(s => s.position),
+          playerCount: players.length,
+        };
+      } catch (error) {
+        console.error('Start game error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to start game');
       }
-
-      if (!roomState.isRunning) {
-        throw new Error('Game not running');
-      }
-
-      const player = roomState.players.get(ctx.userId!);
-      if (!player) {
-        throw new Error('Player not in room');
-      }
-
-      const { correct, isNewMistake } = validateAnswer(roomState, ctx.userId!, input.answer);
-
-      // Check if speed should increase
-      const speedIncreased = checkSpeedIncrease(roomState);
-
-      return {
-        correct,
-        score: player.score,
-        mistakes: player.mistakes,
-        speedIncreased,
-        newInterval: roomState.stimulusInterval,
-      };
-    }),
-
-  nextStimulus: protectedProcedure
-    .input(z.object({
-      roomId: z.string().uuid(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const roomState = roomStates.get(input.roomId);
-      if (!roomState) {
-        throw new Error('Room state not found');
-      }
-
-      if (!roomState.isRunning) {
-        throw new Error('Game not running');
-      }
-
-      // Check if all players have responded
-      const allResponded = Array.from(roomState.players.values()).every(
-        p => p.lastResponse !== null || p.isBot
-      );
-
-      if (!allResponded) {
-        throw new Error('Not all players have responded yet');
-      }
-
-      // Advance to next stimulus
-      advanceStimulus(roomState);
-      resetPlayerResponses(roomState);
-
-      const progress = getGameProgress(roomState);
-      const currentStimulus = getCurrentStimulus(roomState);
-
-      if (progress.isComplete) {
-        // Game finished - save results
-        await saveGameResults(roomState);
-        roomState.isRunning = false;
-      }
-
-      return {
-        currentIndex: roomState.currentIndex,
-        stimulus: currentStimulus,
-        progress: progress.progress,
-        isComplete: progress.isComplete,
-        speedLevel: roomState.speedLevel,
-        interval: roomState.stimulusInterval,
-      };
     }),
 
   getCurrentState: publicProcedure
     .input(z.object({
-      roomId: z.string().uuid(),
+      roomId: z.string(),
     }))
     .query(async ({ input }) => {
       const roomState = roomStates.get(input.roomId);
-      if (!roomState) {
-        throw new Error('Room state not found');
+      if (!roomState || !roomState.isRunning) {
+        return null;
       }
 
-      const progress = getGameProgress(roomState);
+      const { getCurrentStimulus, getGameProgress, getPlayerRankings } = await import('@/server/game/nback-engine');
       const currentStimulus = getCurrentStimulus(roomState);
+      const progress = getGameProgress(roomState);
 
       return {
-        isRunning: roomState.isRunning,
+        roomId: roomState.roomId,
+        nValue: roomState.nValue,
+        stimulusInterval: roomState.stimulusInterval,
         currentIndex: roomState.currentIndex,
-        stimulus: currentStimulus,
+        totalStimuli: roomState.sequence.length,
+        isRunning: roomState.isRunning,
+        speedLevel: roomState.speedLevel,
+        currentStimulus,
         progress: progress.progress,
         isComplete: progress.isComplete,
-        nValue: roomState.nValue,
-        speedLevel: roomState.speedLevel,
-        interval: roomState.stimulusInterval,
+        players: Array.from(roomState.players.values()).map(p => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: p.score,
+          mistakes: p.mistakes,
+          correctAnswers: p.correctAnswers,
+        })),
         rankings: getPlayerRankings(roomState),
       };
     }),
 
-  getResults: publicProcedure
+  submitAnswer: publicProcedure
     .input(z.object({
-      roomId: z.string().uuid(),
+      roomId: z.string(),
+      playerId: z.string(),
+      answer: z.boolean(),
     }))
-    .query(async ({ input }) => {
-      const results = await db.query.gameResults.findMany({
-        where: eq(gameResults.roomId, input.roomId),
-        with: {
-          user: true,
-        },
-        orderBy: (results, { desc }) => [desc(results.score)],
-      });
+    .mutation(async ({ input }) => {
+      try {
+        const roomState = roomStates.get(input.roomId);
+        if (!roomState) {
+          throw new Error('Room not found or game not started');
+        }
+
+        const { validateAnswer, checkSpeedIncrease, getCurrentStimulus } = await import('@/server/game/nback-engine');
+        const result = validateAnswer(roomState, input.playerId, input.answer);
+        const speedIncreased = checkSpeedIncrease(roomState);
+        const currentStimulus = getCurrentStimulus(roomState);
+
+        return {
+          success: true,
+          correct: result.correct,
+          score: roomState.players.get(input.playerId)?.score || 0,
+          mistakes: roomState.players.get(input.playerId)?.mistakes || 0,
+          speedIncreased,
+          isComplete: roomState.currentIndex >= roomState.sequence.length,
+        };
+      } catch (error) {
+        console.error('Submit answer error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to submit answer');
+      }
+    }),
+
+  nextStimulus: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const roomState = roomStates.get(input.roomId);
+      if (!roomState) {
+        throw new Error('Room not found or game not started');
+      }
+
+      const { advanceStimulus, getCurrentStimulus, resetPlayerResponses } = await import('@/server/game/nback-engine');
+      advanceStimulus(roomState);
+      resetPlayerResponses(roomState);
+
+      const currentStimulus = getCurrentStimulus(roomState);
+
+      return {
+        currentIndex: roomState.currentIndex,
+        stimulus: currentStimulus,
+        speedLevel: roomState.speedLevel,
+        isComplete: roomState.currentIndex >= roomState.sequence.length,
+      };
+    }),
+});
 
       return results;
     }),
