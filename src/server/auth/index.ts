@@ -1,34 +1,34 @@
 import { betterAuth } from 'better-auth';
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
 
-// Lazy initialization для Vercel build
-function createDb() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is not set');
-  }
-  const sql = neon(databaseUrl);
-  return drizzle(sql);
+const databaseUrl = process.env.DATABASE_URL;
+const authUrl = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
+const secret = process.env.BETTER_AUTH_SECRET;
+
+if (!databaseUrl) {
+  console.error('DATABASE_URL is not set');
+}
+
+if (!secret) {
+  console.error('BETTER_AUTH_SECRET is not set');
 }
 
 export const auth = betterAuth({
   database: {
     provider: 'postgresql',
-    url: process.env.DATABASE_URL!,
+    url: databaseUrl!,
   },
   emailAndPassword: {
     enabled: true,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
   },
   advanced: {
     useSecureCookies: process.env.NODE_ENV === 'production',
   },
-  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-  secret: process.env.BETTER_AUTH_SECRET,
+  baseURL: authUrl,
+  secret: secret,
 });
 
 export type Session = typeof auth.$Infer.Session;
