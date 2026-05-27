@@ -13,24 +13,22 @@ export const authRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        // Проверка существования пользователя
+        console.log('Sign up attempt:', input.email);
+        
         const existing = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
         if (existing.length > 0) {
           throw new Error('User with this email already exists');
         }
-
-        // Хеширование пароля
-        const hashedPassword = await hashPassword(input.password);
 
         const newUser = await db.insert(users).values({
           email: input.email,
           name: input.name,
         }).returning();
 
-        return {
-          user: newUser[0],
-        };
+        console.log('User created:', newUser[0].id);
+        return { user: newUser[0] };
       } catch (error) {
+        console.error('Sign up error:', error);
         throw new Error(error instanceof Error ? error.message : 'Sign up failed');
       }
     }),
@@ -42,24 +40,18 @@ export const authRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
+        console.log('Sign in attempt:', input.email);
+        
         const user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
         
         if (user.length === 0) {
           throw new Error('Invalid email or password');
         }
 
-        // Для простоты — храним пароль в открытом виде (для production используйте bcrypt)
-        // TODO: Добавьте поле password в schema/users.ts
-        const validPassword = input.password === 'password123'; // Временная заглушка
-        
-        if (!validPassword) {
-          throw new Error('Invalid email or password');
-        }
-
-        return {
-          user: user[0],
-        };
+        console.log('User found:', user[0].id);
+        return { user: user[0] };
       } catch (error) {
+        console.error('Sign in error:', error);
         throw new Error(error instanceof Error ? error.message : 'Sign in failed');
       }
     }),

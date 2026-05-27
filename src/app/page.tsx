@@ -16,20 +16,24 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   const signUpMutation = trpc.auth.signUp.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Sign up success:', data);
       router.push('/dashboard');
     },
     onError: (error) => {
+      console.error('Sign up error:', error);
       setError(error.message || 'Sign up failed');
       setLoading(false);
     },
   });
 
   const signInMutation = trpc.auth.signIn.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Sign in success:', data);
       router.push('/dashboard');
     },
     onError: (error) => {
+      console.error('Sign in error:', error);
       setError(error.message || 'Sign in failed');
       setLoading(false);
     },
@@ -48,7 +52,11 @@ export default function Home() {
   };
 
   const handleCreateRoom = () => {
-    if (!roomName.trim()) return;
+    if (!roomName.trim()) {
+      setError('Please enter a room name');
+      return;
+    }
+    // Временно пропускаем auth
     const mockRoomId = crypto.randomUUID();
     router.push(`/room/${mockRoomId}`);
   };
@@ -146,7 +154,7 @@ export default function Home() {
         </div>
 
         <div className="border-t dark:border-gray-700 pt-8">
-          <h2 className="text-xl font-semibold mb-4">Create a Room</h2>
+          <h2 className="text-xl font-semibold mb-4">Create a Room (Skip Auth)</h2>
           
           <div className="space-y-4">
             <div>
