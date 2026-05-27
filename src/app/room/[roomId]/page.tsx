@@ -82,7 +82,7 @@ export default function RoomPage() {
   useEffect(() => {
     if (gameState) {
       setCurrentIndex(gameState.currentIndex);
-      setCurrentStimulus(gameState.currentStimulus ? gameState.currentStimulus.position : null);
+      setCurrentStimulus(gameState.currentStimulus ?? null);
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
     }
