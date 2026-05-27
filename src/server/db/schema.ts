@@ -14,7 +14,7 @@ export const users = pgTable('users', {
 export const rooms = pgTable('rooms', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
-  hostId: uuid('host_id').notNull(),
+  hostId: uuid('host_id').defaultRandom(),
   nValue: integer('n_value').notNull().default(2),
   maxPlayers: integer('max_players').notNull().default(4),
   isStarted: boolean('is_started').notNull().default(false),

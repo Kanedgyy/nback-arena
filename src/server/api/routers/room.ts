@@ -15,12 +15,8 @@ export const roomRouter = router({
       try {
         console.log('Creating room:', input);
         
-        // Генерируем UUID для hostId
-        const hostId = crypto.randomUUID();
-        
         const newRoom = await db.insert(rooms).values({
           name: input.name,
-          hostId: hostId,
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
           isStarted: false,
