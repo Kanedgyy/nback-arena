@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   
   const [name, setName] = useState('');
@@ -34,7 +34,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20">
-          <h1 className="text-3xl font-bold text-white text-center mb-2">🎮 Филворд</h1>
+          <h1 className="text-3xl font-bold text-white text-center mb-2">🎮 N-Back Arena</h1>
           <p className="text-purple-200 text-center mb-8">Создайте аккаунт для игры</p>
 
           {error && (
@@ -106,5 +106,17 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center">
+        <div className="text-white text-2xl">Загрузка...</div>
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   );
 }

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const mode = searchParams.get('mode') || 'create'; // 'create' или 'join'
+  const mode = searchParams.get('mode') || 'create';
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,7 +17,6 @@ export default function LoginPage() {
   const signInMutation = trpc.auth.signIn.useMutation({
     onSuccess: (data) => {
       console.log('Sign in success:', data);
-      // Перенаправляем в зависимости от режима
       if (mode === 'create') {
         router.push('/create-room');
       } else {
@@ -40,7 +39,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20">
-          <h1 className="text-3xl font-bold text-white text-center mb-2">🎮 Филворд</h1>
+          <h1 className="text-3xl font-bold text-white text-center mb-2">🎮 N-Back Arena</h1>
           <p className="text-purple-200 text-center mb-8">Войдите, чтобы играть</p>
 
           {error && (
@@ -98,5 +97,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center">
+        <div className="text-white text-2xl">Загрузка...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
