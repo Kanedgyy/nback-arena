@@ -14,7 +14,7 @@ export const users = pgTable('users', {
 export const rooms = pgTable('rooms', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
-  hostId: text('host_id').notNull(), // Изменили на text для поддержки 'anonymous'
+  hostId: uuid('host_id').notNull(),
   nValue: integer('n_value').notNull().default(2),
   maxPlayers: integer('max_players').notNull().default(4),
   isStarted: boolean('is_started').notNull().default(false),
@@ -26,7 +26,7 @@ export const rooms = pgTable('rooms', {
 export const roomPlayers = pgTable('room_players', {
   id: uuid('id').primaryKey().defaultRandom(),
   roomId: uuid('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull(), // Изменили на text для поддержки ботов
+  userId: uuid('user_id').notNull(),
   score: integer('score').notNull().default(0),
   mistakes: integer('mistakes').notNull().default(0),
   isReady: boolean('is_ready').notNull().default(false),

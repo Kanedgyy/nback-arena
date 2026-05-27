@@ -15,9 +15,12 @@ export const roomRouter = router({
       try {
         console.log('Creating room:', input);
         
+        // Генерируем UUID для hostId
+        const hostId = crypto.randomUUID();
+        
         const newRoom = await db.insert(rooms).values({
           name: input.name,
-          hostId: 'anonymous',
+          hostId: hostId,
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
           isStarted: false,
@@ -54,6 +57,17 @@ export const roomRouter = router({
         if (currentPlayers.length >= room[0].maxPlayers) {
           throw new Error('Room is full');
         }
+
+        // Генерируем UUID для нового игрока
+        const playerUserId = crypto.randomUUID();
+        await db.insert(roomPlayers).values({
+          id: crypto.randomUUID(),
+          roomId: input.sessionId,
+          userId: playerUserId,
+          score: 0,
+          mistakes: 0,
+          isReady: false,
+        });
 
         return { id: room[0].id, name: room[0].name };
       } catch (error) {
