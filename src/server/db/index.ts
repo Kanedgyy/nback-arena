@@ -1,23 +1,31 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import { sql } from 'drizzle-orm';
+import { drizzle, NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
-// Тип базы данных
-export type DbClient = ReturnType<typeof drizzle<typeof schema>>;
+type DbClient = NeonHttpDatabase<typeof schema>;
 
-// Создаём клиент с явной типизацией
-function createDbClient(): DbClient {
-  if (!process.env.DATABASE_URL) {
-    // Во время build переменная может отсутствовать - создаём заглушку
-    // Но в runtime она всегда должна быть
-    return {} as DbClient;
+// Ленивая инициализация для Vercel
+let _db: DbClient | null = null;
+
+export function getDb(): DbClient {
+  if (!_db) {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      console.error('DATABASE_URL is not set');
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+    const { neon } = require('@neondatabase/serverless');
+    const sql = neon(databaseUrl);
+    _db = drizzle(sql, { schema });
   }
-  const neonSql = neon(process.env.DATABASE_URL);
-  return drizzle(neonSql, { schema });
+  return _db;
 }
 
-export const db = createDbClient();
-export { sql };
+export const db = new Proxy({} as DbClient, {
+  get(target, prop) {
+    const actualDb = getDb();
+    return (actualDb as any)[prop];
+  },
+});
 
+export { sql } from 'drizzle-orm';
 export * from './schema';
