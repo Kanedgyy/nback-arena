@@ -10,7 +10,7 @@
  */
 
 // Grid positions (3x3 = 9 positions)
-export type GridPosition = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type GridPosition = number | null;
 
 export interface Stimulus {
   sequenceIndex: number;

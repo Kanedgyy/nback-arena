@@ -1,11 +1,23 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
-import { rooms, roomPlayers } from '@/server/db/schema';
+import { rooms, roomPlayers, gameResults } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { db } from '@/server/db';
+import type { RoomState } from '@/server/game/nback-engine';
+import { 
+  createRoomState, 
+  addPlayer, 
+  getCurrentStimulus, 
+  getGameProgress, 
+  getPlayerRankings, 
+  validateAnswer, 
+  checkSpeedIncrease, 
+  advanceStimulus, 
+  resetPlayerResponses 
+} from '@/server/game/nback-engine';
 
 // In-memory room states (for Vercel serverless, we'll use polling)
-const roomStates = new Map<string, import('@/server/game/nback-engine').RoomState>();
+const roomStates = new Map<string, RoomState>();
 
 export const gameRouter = router({
   start: publicProcedure
@@ -27,7 +39,6 @@ export const gameRouter = router({
         }
 
         // Create room state
-        const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
         const playerIds = players.map(p => p.userId);
         const roomState = createRoomState(input.roomId, {
           nValue: room[0].nValue,
@@ -63,7 +74,6 @@ export const gameRouter = router({
         return null;
       }
 
-      const { getCurrentStimulus, getGameProgress, getPlayerRankings } = await import('@/server/game/nback-engine');
       const currentStimulus = getCurrentStimulus(roomState);
       const progress = getGameProgress(roomState);
 
@@ -102,7 +112,6 @@ export const gameRouter = router({
           throw new Error('Room not found or game not started');
         }
 
-        const { validateAnswer, checkSpeedIncrease, getCurrentStimulus } = await import('@/server/game/nback-engine');
         const result = validateAnswer(roomState, input.playerId, input.answer);
         const speedIncreased = checkSpeedIncrease(roomState);
         const currentStimulus = getCurrentStimulus(roomState);
@@ -131,7 +140,6 @@ export const gameRouter = router({
         throw new Error('Room not found or game not started');
       }
 
-      const { advanceStimulus, getCurrentStimulus, resetPlayerResponses } = await import('@/server/game/nback-engine');
       advanceStimulus(roomState);
       resetPlayerResponses(roomState);
 

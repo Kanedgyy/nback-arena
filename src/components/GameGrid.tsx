@@ -15,7 +15,7 @@ export function GameGrid({ activePosition, nValue }: GameGridProps) {
           key={i}
           className={`
             rounded-lg transition-all duration-200
-            ${activePosition === i 
+            ${activePosition === (i as number)
               ? 'bg-blue-500 shadow-lg shadow-blue-500/50 scale-105' 
               : 'bg-gray-200 dark:bg-gray-700'}
           `}

@@ -82,7 +82,7 @@ export default function RoomPage() {
   useEffect(() => {
     if (gameState) {
       setCurrentIndex(gameState.currentIndex);
-      setCurrentStimulus(gameState.currentStimulus?.position ?? null);
+      setCurrentStimulus(gameState.currentStimulus ? gameState.currentStimulus.position : null);
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
     }
@@ -157,7 +157,7 @@ export default function RoomPage() {
                   Нажми "Совпадает", если текущая позиция совпадает с позицией из {nValue} шагов назад
                 </p>
                 
-                <GameGrid activePosition={currentStimulus} nValue={nValue} />
+                <GameGrid activePosition={currentStimulus ?? undefined} nValue={nValue} />
               </div>
 
               <GameControls
