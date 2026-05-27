@@ -1,19 +1,15 @@
 import { z } from 'zod';
-import { router, protectedProcedure, publicProcedure } from '../trpc';
-import { db } from '../../db';
-import { rooms, roomPlayers, gameResults } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
-import { createRoomState, addPlayer, DEFAULT_CONFIG } from '../../game/nback-engine';
-
-// In-memory room states (in production, use Redis)
-const roomStates = new Map<string, ReturnType<typeof createRoomState>>();
+import { router, publicProcedure } from '../trpc';
+import { db } from '@/server/db';
+import { rooms, roomPlayers } from '@/server/db/schema';
+import { eq, desc } from 'drizzle-orm';
 
 export const roomRouter = router({
   create: publicProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
       nValue: z.number().int().min(1).max(5).default(2),
-      maxPlayers: z.number().int().min(2).max(4).default(4),
+      maxPlayers: z.number().int().min(2).max(6).default(4),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -21,18 +17,71 @@ export const roomRouter = router({
         
         const newRoom = await db.insert(rooms).values({
           name: input.name,
-          hostId: 'anonymous', // Временно без auth
+          hostId: 'anonymous',
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
+          status: 'waiting',
         }).returning().then(r => r[0]);
 
         console.log('Room created:', newRoom.id);
 
-        await db.insert(roomPlayers).values({
-          roomId: newRoom.id,
-          userId: 'anonymous',
-          isReady: false,
-        });
+        return { id: newRoom.id, name: newRoom.name };
+      } catch (error) {
+        console.error('Create room error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to create room');
+      }
+    }),
+
+  join: publicProcedure
+    .input(z.object({
+      sessionId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        console.log('Joining room:', input.sessionId);
+        
+        const room = await db.select().from(rooms).where(eq(rooms.id, input.sessionId)).limit(1);
+        
+        if (room.length === 0) {
+          throw new Error('Room not found');
+        }
+
+        if (room[0].status !== 'waiting') {
+          throw new Error('Game already started');
+        }
+
+        // Проверка количества игроков
+        const currentPlayers = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.sessionId));
+        if (currentPlayers.length >= room[0].maxPlayers) {
+          throw new Error('Room is full');
+        }
+
+        return { id: room[0].id, name: room[0].name };
+      } catch (error) {
+        console.error('Join room error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to join room');
+      }
+    }),
+
+  get: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+      
+      if (room.length === 0) {
+        throw new Error('Room not found');
+      }
+
+      const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+
+      return {
+        room: room[0],
+        players,
+      };
+    }),
+});
 
         console.log('Player added to room');
 
