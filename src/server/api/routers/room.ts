@@ -20,7 +20,7 @@ export const roomRouter = router({
           hostId: 'anonymous',
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
-          status: 'waiting',
+          isStarted: false,
         }).returning().then(r => r[0]);
 
         console.log('Room created:', newRoom.id);
@@ -46,7 +46,7 @@ export const roomRouter = router({
           throw new Error('Room not found');
         }
 
-        if (room[0].status !== 'waiting') {
+        if (room[0].isStarted) {
           throw new Error('Game already started');
         }
 
