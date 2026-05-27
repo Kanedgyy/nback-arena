@@ -213,14 +213,14 @@ export default function Home() {
             <button
               onClick={handleCreateRoom}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-all"
-              disabled={loading || createRoomMutation.isPending || !isLoggedIn}
+              disabled={loading || createRoomMutation.isPending}
             >
               {(loading || createRoomMutation.isPending) ? 'Loading...' : 'Create Room'}
             </button>
 
-            {!isLoggedIn && (
-              <p className="text-sm text-yellow-600 dark:text-yellow-400 text-center mt-2">
-                ⚠️ Please login or sign up to create a room
+            {isLoggedIn && (
+              <p className="text-sm text-green-600 dark:text-green-400 text-center mt-2">
+                ✓ You can create rooms
               </p>
             )}
           </div>

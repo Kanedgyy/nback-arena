@@ -9,36 +9,38 @@ import { createRoomState, addPlayer, DEFAULT_CONFIG } from '../../game/nback-eng
 const roomStates = new Map<string, ReturnType<typeof createRoomState>>();
 
 export const roomRouter = router({
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
       nValue: z.number().int().min(1).max(5).default(2),
       maxPlayers: z.number().int().min(2).max(4).default(4),
     }))
-    .mutation(async ({ ctx, input }) => {
-      const newRoom = await db.insert(rooms).values({
-        name: input.name,
-        hostId: ctx.userId!,
-        nValue: input.nValue,
-        maxPlayers: input.maxPlayers,
-      }).returning().then(r => r[0]);
+    .mutation(async ({ input }) => {
+      try {
+        console.log('Creating room:', input);
+        
+        const newRoom = await db.insert(rooms).values({
+          name: input.name,
+          hostId: 'anonymous', // Временно без auth
+          nValue: input.nValue,
+          maxPlayers: input.maxPlayers,
+        }).returning().then(r => r[0]);
 
-      // Add host as first player
-      await db.insert(roomPlayers).values({
-        roomId: newRoom.id,
-        userId: ctx.userId!,
-        isReady: false,
-      });
+        console.log('Room created:', newRoom.id);
 
-      // Initialize room state
-      const roomState = createRoomState(newRoom.id, {
-        nValue: input.nValue,
-        baseInterval: DEFAULT_CONFIG.baseInterval,
-      });
-      addPlayer(roomState, ctx.userId!, false);
-      roomStates.set(newRoom.id, roomState);
+        await db.insert(roomPlayers).values({
+          roomId: newRoom.id,
+          userId: 'anonymous',
+          isReady: false,
+        });
 
-      return newRoom;
+        console.log('Player added to room');
+
+        return newRoom;
+      } catch (error) {
+        console.error('Create room error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to create room');
+      }
     }),
 
   join: protectedProcedure
