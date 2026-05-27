@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signUp, signIn, useSession } from '@/lib/auth-client';
 
 export default function Home() {
   const router = useRouter();
@@ -11,17 +12,60 @@ export default function Home() {
   const [name, setName] = useState('');
   const [roomName, setRoomName] = useState('');
   const [nValue, setNValue] = useState(2);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [session] = useSession();
 
-  // Mock authentication (replace with real tRPC calls)
-  const handleAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    // For demo, just redirect to dashboard
+  // Если пользователь уже вошёл, redirect на dashboard
+  if (session.data) {
     router.push('/dashboard');
+    return null;
+  }
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLoginMode) {
+        const result = await signIn.email({
+          email,
+          password,
+          callbackURL: '/dashboard',
+        });
+        if (result.error) {
+          setError(result.error.message || 'Login failed');
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        const result = await signUp.email({
+          email,
+          password,
+          name,
+          callbackURL: '/dashboard',
+        });
+        if (result.error) {
+          setError(result.error.message || 'Sign up failed');
+        } else {
+          router.push('/dashboard');
+        }
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateRoom = () => {
     if (!roomName.trim()) return;
-    // For demo, create a mock room ID
+    // Если не авторизован, redirect на auth
+    if (!session.data) {
+      router.push('/');
+      return;
+    }
     const mockRoomId = crypto.randomUUID();
     router.push(`/room/${mockRoomId}`);
   };
@@ -33,6 +77,12 @@ export default function Home() {
         <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
           Competitive N-Back Training
         </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg">
+            {error}
+          </div>
+        )}
 
         {/* Auth Form */}
         <div className="mb-8">
@@ -95,14 +145,16 @@ export default function Home() {
                 className="w-full px-4 py-2 rounded-lg border dark:bg-gray-700 dark:border-gray-600"
                 placeholder="••••••••"
                 required
+                minLength={6}
               />
             </div>
 
             <button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-all"
+              disabled={loading}
             >
-              {isLoginMode ? 'Login' : 'Sign Up'}
+              {loading ? 'Loading...' : isLoginMode ? 'Login' : 'Sign Up'}
             </button>
           </form>
         </div>
