@@ -13,7 +13,8 @@ import {
   validateAnswer, 
   checkSpeedIncrease, 
   advanceStimulus, 
-  resetPlayerResponses 
+  resetPlayerResponses,
+  type Stimulus
 } from '@/server/game/nback-engine';
 
 // In-memory room states (for Vercel serverless, we'll use polling)
@@ -85,7 +86,7 @@ export const gameRouter = router({
         totalStimuli: roomState.sequence.length,
         isRunning: roomState.isRunning,
         speedLevel: roomState.speedLevel,
-        currentStimulus,
+        currentStimulus: currentStimulus ? currentStimulus.position : undefined,
         progress: progress.progress,
         isComplete: progress.isComplete,
         players: Array.from(roomState.players.values()).map(p => ({
@@ -147,7 +148,7 @@ export const gameRouter = router({
 
       return {
         currentIndex: roomState.currentIndex,
-        stimulus: currentStimulus,
+        stimulus: currentStimulus ? { position: currentStimulus.position } : undefined,
         speedLevel: roomState.speedLevel,
         isComplete: roomState.currentIndex >= roomState.sequence.length,
       };

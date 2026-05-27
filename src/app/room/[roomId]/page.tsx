@@ -157,7 +157,7 @@ export default function RoomPage() {
                   Нажми "Совпадает", если текущая позиция совпадает с позицией из {nValue} шагов назад
                 </p>
                 
-                <GameGrid activePosition={currentStimulus ?? undefined} nValue={nValue} />
+                <GameGrid activePosition={currentStimulus ?? 0} nValue={nValue} />
               </div>
 
               <GameControls
