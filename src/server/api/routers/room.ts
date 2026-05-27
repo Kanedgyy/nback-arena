@@ -28,6 +28,16 @@ export const roomRouter = router({
 
         console.log('Room created:', newRoom.id);
 
+        // Добавляем хоста как первого игрока в БД
+        await db.insert(roomPlayers).values({
+          id: crypto.randomUUID(),
+          roomId: newRoom.id,
+          userId: hostId,
+          score: 0,
+          mistakes: 0,
+          isReady: false,
+        });
+
         // Инициализируем игровое состояние
         const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
         const roomState = createRoomState(newRoom.id, {
