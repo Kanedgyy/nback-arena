@@ -66,37 +66,6 @@ export default function RoomPage() {
     },
   });
 
-  // Автоматическое переключение стимулов
-  useEffect(() => {
-    if (!isGameRunning) return;
-
-    const interval = setInterval(() => {
-      const playerId = room?.players[0]?.userId;
-      if (!playerId) return;
-
-      // Если игрок ещё не ответил - пропускаем
-      submitAnswerMutation.mutate({ roomId, playerId, answer: false });
-      
-      setTimeout(() => {
-        nextStimulusMutation.mutate({ roomId });
-      }, 100);
-    }, 2000); // Каждые 2 секунды
-
-    return () => clearInterval(interval);
-  }, [isGameRunning, room, roomId]);
-
-  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
-    onSuccess: (data) => {
-      setCurrentIndex(data.currentIndex);
-      setCurrentStimulus(data.stimulus?.position ?? null);
-      setSpeedLevel(data.speedLevel);
-
-      if (data.isComplete) {
-        setIsGameRunning(false);
-      }
-    },
-  });
-
   const handleAnswer = (answer: boolean) => {
     if (!room) return;
     
@@ -104,11 +73,18 @@ export default function RoomPage() {
     if (!playerId) return;
     
     submitAnswerMutation.mutate({ roomId, playerId, answer });
-    
-    setTimeout(() => {
-      nextStimulusMutation.mutate({ roomId });
-    }, 500);
   };
+
+  // Автоматическое переключение стимулов
+  useEffect(() => {
+    if (!isGameRunning) return;
+
+    const interval = setInterval(() => {
+      nextStimulusMutation.mutate({ roomId });
+    }, 2000); // Каждые 2 секунды
+
+    return () => clearInterval(interval);
+  }, [isGameRunning, roomId]);
 
   useEffect(() => {
     if (gameState) {
