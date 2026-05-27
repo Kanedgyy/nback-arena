@@ -39,17 +39,26 @@ export const gameRouter = router({
           throw new Error('Need at least 1 player to start');
         }
 
-        // Create room state
-        const playerIds = players.map(p => p.userId);
-        const roomState = createRoomState(input.roomId, {
-          nValue: room[0].nValue,
-        });
+        // Проверяем, есть ли уже состояние игры
+        const existingRoomState = roomStates.get(input.roomId);
         
-        playerIds.forEach((playerId, index) => {
-          addPlayer(roomState, playerId, false, 0);
-        });
+        if (!existingRoomState) {
+          // Создаём новое состояние
+          const playerIds = players.map(p => p.userId);
+          const newRoomState = createRoomState(input.roomId, {
+            nValue: room[0].nValue,
+          });
+          
+          playerIds.forEach((playerId) => {
+            addPlayer(newRoomState, playerId, false, 0);
+          });
 
-        roomStates.set(input.roomId, roomState);
+          roomStates.set(input.roomId, newRoomState);
+        }
+
+        // Запускаем игру
+        const roomState = roomStates.get(input.roomId)!;
+        roomState.isRunning = true;
 
         // Update room status
         await db.update(rooms).set({ isStarted: true }).where(eq(rooms.id, input.roomId));
@@ -108,9 +117,27 @@ export const gameRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const roomState = roomStates.get(input.roomId);
+        let roomState = roomStates.get(input.roomId);
         if (!roomState) {
-          throw new Error('Room not found or game not started');
+          // Инициализируем состояние если его нет
+          const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+          if (room.length === 0) {
+            throw new Error('Room not found or game not started');
+          }
+          
+          const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+          const playerIds = players.map(p => p.userId);
+          
+          roomState = createRoomState(input.roomId, {
+            nValue: room[0].nValue,
+          });
+          
+          playerIds.forEach((playerId) => {
+            addPlayer(roomState, playerId, false, 0);
+          });
+          
+          roomStates.set(input.roomId, roomState);
+          roomState.isRunning = true;
         }
 
         const result = validateAnswer(roomState, input.playerId, input.answer);
@@ -136,9 +163,27 @@ export const gameRouter = router({
       roomId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const roomState = roomStates.get(input.roomId);
+      let roomState = roomStates.get(input.roomId);
       if (!roomState) {
-        throw new Error('Room not found or game not started');
+        // Инициализируем состояние если его нет
+        const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        if (room.length === 0) {
+          throw new Error('Room not found or game not started');
+        }
+        
+        const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+        const playerIds = players.map(p => p.userId);
+        
+        roomState = createRoomState(input.roomId, {
+          nValue: room[0].nValue,
+        });
+        
+        playerIds.forEach((playerId) => {
+          addPlayer(roomState, playerId, false, 0);
+        });
+        
+        roomStates.set(input.roomId, roomState);
+        roomState.isRunning = true;
       }
 
       advanceStimulus(roomState);
