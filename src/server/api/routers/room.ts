@@ -81,7 +81,8 @@ export const roomRouter = router({
         });
 
         // Добавляем игрока в состояние игры
-        const { getRoomState, addPlayer } = await import('@/server/api/routers/game');
+        const { getRoomState } = await import('@/server/api/routers/game');
+        const { addPlayer } = await import('@/server/game/nback-engine');
         const roomState = getRoomState(input.sessionId);
         if (roomState) {
           addPlayer(roomState, playerUserId, false, 0);
