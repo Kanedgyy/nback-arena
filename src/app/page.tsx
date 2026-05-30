@@ -6,6 +6,14 @@ import Link from 'next/link';
 export default function Home() {
   const router = useRouter();
 
+  const handleCreateGame = () => {
+    router.push('/auth/login?mode=create');
+  };
+
+  const handleJoinGame = () => {
+    router.push('/auth/login?mode=join');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
@@ -16,24 +24,24 @@ export default function Home() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Создать игру */}
-          <Link
-            href="/auth/login?mode=create"
-            className="group block bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-pink-400 transition-all duration-300"
+          <button
+            onClick={handleCreateGame}
+            className="group block bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-pink-400 transition-all duration-300 text-left"
           >
             <div className="text-6xl mb-4">✨</div>
             <h2 className="text-2xl font-bold text-white mb-2">Создать новую игру</h2>
             <p className="text-purple-200">Создайте комнату и пригласите друзей</p>
-          </Link>
+          </button>
 
           {/* Присоединиться */}
-          <Link
-            href="/auth/login?mode=join"
-            className="group block bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-cyan-400 transition-all duration-300"
+          <button
+            onClick={handleJoinGame}
+            className="group block bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-cyan-400 transition-all duration-300 text-left"
           >
             <div className="text-6xl mb-4">🚀</div>
             <h2 className="text-2xl font-bold text-white mb-2">Присоединиться</h2>
             <p className="text-purple-200">Введите ID сессии от друга</p>
-          </Link>
+          </button>
         </div>
 
         {/* Инструкция */}
