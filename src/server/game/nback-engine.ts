@@ -166,6 +166,12 @@ export function validateAnswer(
     return { correct: true, isNewMistake: false }; // No answer expected yet
   }
   
+  // Check if player already answered for this stimulus
+  if (player.lastResponse !== null) {
+    // Already answered, ignore duplicate
+    return { correct: true, isNewMistake: false };
+  }
+  
   const currentStimulus = room.sequence[currentIndex - 1];
   const nBackStimulus = room.sequence[currentIndex - 1 - nValue];
   

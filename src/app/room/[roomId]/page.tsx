@@ -50,6 +50,7 @@ export default function RoomPage() {
     onSuccess: (data) => {
       setScore(data.score);
       setMistakes(data.mistakes);
+      // Счётчики обновляются только если это правильный ответ
       if (data.correct) {
         setCorrectAnswers(prev => prev + 1);
       } else {
