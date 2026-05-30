@@ -62,6 +62,17 @@ export default function RoomPage() {
     },
   });
 
+  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
+    onSuccess: (data) => {
+      // Разблокируем кнопку после переключения стимула
+      isAnswerButtonLocked.current = false;
+      
+      if (data.isComplete) {
+        setIsGameRunning(false);
+      }
+    },
+  });
+
   const handleAnswer = (answer: boolean) => {
     if (!room || !isGameRunning || isAnswerButtonLocked.current) return;
     
@@ -71,15 +82,16 @@ export default function RoomPage() {
     submitAnswerMutation.mutate({ roomId, playerId, answer });
   };
 
-  // Разблокировка кнопки через 2 секунды после нажатия
+  // Автоматическое переключение стимулов каждые 2 секунды
   useEffect(() => {
-    if (isAnswerButtonLocked.current) {
-      const timer = setTimeout(() => {
-        isAnswerButtonLocked.current = false;
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isAnswerButtonLocked.current]);
+    if (!isGameRunning) return;
+
+    const interval = setInterval(() => {
+      nextStimulusMutation.mutate({ roomId });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isGameRunning, roomId]);
 
   if (!room) {
     return (
