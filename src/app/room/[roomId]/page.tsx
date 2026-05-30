@@ -25,15 +25,30 @@ export default function RoomPage() {
   const [hasAnswered, setHasAnswered] = useState(false);
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
-  const { data: gameState } = trpc.game.getCurrentState.useQuery(
+  const { data: gameState, refetch } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { enabled: isGameRunning, refetchInterval: 1000 }
+    { enabled: isGameRunning, refetchInterval: 500 }
   );
+
+  // Синхронизация состояния с сервером
+  useEffect(() => {
+    if (gameState) {
+      setCurrentIndex(gameState.currentIndex);
+      setCurrentStimulus(gameState.currentStimulus ?? null);
+      setSpeedLevel(gameState.speedLevel);
+      setIsGameRunning(gameState.isRunning);
+      // Сбрасываем hasAnswered когда сервер показывает новый стимул
+      if (gameState.currentStimulus !== undefined) {
+        setHasAnswered(false);
+      }
+    }
+  }, [gameState]);
 
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
       setHasAnswered(false);
+      refetch();
     },
   });
 
@@ -60,11 +75,8 @@ export default function RoomPage() {
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      setCurrentIndex(data.currentIndex);
-      setCurrentStimulus(data.stimulus ? (data.stimulus as any).position : null);
-      setSpeedLevel(data.speedLevel);
       setHasAnswered(false);
-
+      
       if (data.isComplete) {
         setIsGameRunning(false);
       }
@@ -72,7 +84,7 @@ export default function RoomPage() {
   });
 
   const handleAnswer = (answer: boolean) => {
-    if (!room || hasAnswered) return;
+    if (!room || hasAnswered || !isGameRunning) return;
     
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
@@ -86,7 +98,7 @@ export default function RoomPage() {
     }, 1500);
   };
 
-  // Автоматическое переключение стимулов (без отправки ответа)
+  // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
   useEffect(() => {
     if (!isGameRunning || hasAnswered) return;
 
@@ -175,7 +187,7 @@ export default function RoomPage() {
               />
               
               {hasAnswered && (
-                <p className="text-center text-yellow-300 text-sm">
+                <p className="text-center text-yellow-300 text-sm mt-2">
                   Ответ записан. Ждём следующий стимул...
                 </p>
               )}
