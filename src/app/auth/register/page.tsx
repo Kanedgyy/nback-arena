@@ -100,7 +100,7 @@ function RegisterForm() {
 
           <div className="mt-6 text-center">
             <Link href="/" className="text-white/60 hover:text-white text-sm">
-              ← Вернуться назад
+              ← Вернуться на главную
             </Link>
           </div>
         </div>
