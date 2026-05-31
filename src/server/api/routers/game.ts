@@ -247,6 +247,77 @@ export const gameRouter = router({
         isComplete: roomState.currentIndex >= roomState.sequence.length,
       };
     }),
+
+  getResults: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const roomState = await loadRoomState(input.roomId);
+      
+      if (roomState) {
+        return {
+          nValue: roomState.nValue,
+          isComplete: roomState.currentIndex >= roomState.sequence.length,
+          players: Array.from(roomState.players.values()).map(p => ({
+            userId: p.userId,
+            isBot: p.isBot,
+            score: p.score,
+            mistakes: p.mistakes,
+            correctAnswers: p.correctAnswers,
+          })),
+          rankings: getPlayerRankings(roomState),
+        };
+      }
+      
+      // Fallback: load from DB players if game state was reset
+      const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+      const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+      
+      return {
+        nValue: room[0]?.nValue || 2,
+        isComplete: true,
+        players: players.map(p => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: p.score,
+          mistakes: p.mistakes,
+          correctAnswers: 0,
+        })),
+        rankings: players
+          .map(p => ({ userId: p.userId, isBot: p.isBot, score: p.score, mistakes: p.mistakes, correctAnswers: 0, rank: 0 }))
+          .sort((a, b) => b.score - a.score)
+          .map((p, i) => ({ ...p, rank: i + 1 })),
+      };
+    }),
+
+  rematch: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        console.log('Rematch in room:', input.roomId);
+        
+        // Очищаем состояние игры
+        roomStatesCache.delete(input.roomId);
+        
+        // Сбрасываем game_state_json
+        await db.update(rooms)
+          .set({ gameStateJson: null, isStarted: false })
+          .where(eq(rooms.id, input.roomId));
+        
+        // Сбрасываем score и mistakes у всех игроков
+        await db.update(roomPlayers)
+          .set({ score: 0, mistakes: 0 })
+          .where(eq(roomPlayers.roomId, input.roomId));
+        
+        return { success: true };
+      } catch (error) {
+        console.error('Rematch error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to reset game');
+      }
+    }),
 });
 
 // Helper: process bot answers for current stimulus (NEW LOGIC)

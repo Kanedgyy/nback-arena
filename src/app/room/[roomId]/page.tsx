@@ -209,6 +209,17 @@ export default function RoomPage() {
     };
   }, [isGameRunning, roomId, currentIndex]);
 
+  // Редирект на страницу результатов при окончании игры
+  useEffect(() => {
+    if (gameState?.isComplete) {
+      // Небольшая задержка чтобы игрок увидел финальный стимул
+      const timeout = setTimeout(() => {
+        router.push(`/room/${roomId}/results`);
+      }, 1500);
+      return () => clearTimeout(timeout);
+    }
+  }, [gameState?.isComplete, roomId, router]);
+
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {
     const newInterval = Math.max(2000 - (speedLevel * 200), 600);
@@ -472,36 +483,6 @@ export default function RoomPage() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {gameState?.isComplete && (
-          <div className="mt-8 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/20">
-            <h2 className="text-2xl font-bold mb-4 text-white">🏆 Результаты игры</h2>
-            <div className="space-y-2">
-              {gameState.rankings.map((player, idx) => (
-                <div
-                  key={player.userId}
-                  className="flex justify-between items-center p-3 bg-white/5 rounded-lg"
-                >
-                  <span className="text-white">
-                    {player.rank === 1 && '🥇'}
-                    {player.rank === 2 && '🥈'}
-                    {player.rank === 3 && '🥉'}
-                    {' '}{player.isBot ? getBotName(player.userId, idx) : (idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`)}
-                  </span>
-                  <span className="text-white font-semibold">
-                    Счёт: {player.score} | Ошибок: {player.mistakes}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl transition-all"
-            >
-              🏠 Вернуться на главную
-            </button>
           </div>
         )}
       </div>
