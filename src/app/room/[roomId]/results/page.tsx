@@ -25,6 +25,7 @@ export default function ResultsPage() {
   const roomId = params.roomId as string;
 
   const { data: results, isLoading } = trpc.game.getResults.useQuery({ roomId });
+  const { data: tournament } = trpc.game.getTournamentResults.useQuery({ roomId });
   const { data: room } = trpc.room.get.useQuery({ roomId });
 
   const utils = trpc.useUtils();
@@ -33,17 +34,20 @@ export default function ResultsPage() {
     onSuccess: () => {
       utils.room.get.invalidate({ roomId });
       utils.game.getCurrentState.invalidate({ roomId });
+      utils.game.getTournamentResults.invalidate({ roomId });
       router.push(`/room/${roomId}`);
     },
   });
 
-  if (isLoading || !results) {
+  if (isLoading || !results || !room) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center">
         <div className="text-white text-2xl">🏆 Загрузка результатов...</div>
       </div>
     );
   }
+
+  const isTournament = room.room.isTournament;
 
   const handleRematch = () => {
     rematchMutation.mutate({ roomId });
@@ -57,17 +61,48 @@ export default function ResultsPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2">🏆 Результаты</h1>
+          <h1 className="text-5xl font-bold text-white mb-2">
+            {isTournament ? '🏆 Финал турнира' : '🏆 Результаты'}
+          </h1>
           <p className="text-xl text-purple-200">
-            {room?.room.name} — {results.nValue}-Back
+            {room?.room.name} — {isTournament ? 'Турнир' : `${results.nValue}-Back`}
           </p>
         </div>
 
+        {/* Результаты по раундам (турнир) */}
+        {isTournament && tournament && tournament.rounds.length > 0 && (
+          <div className="space-y-4 mb-6">
+            {tournament.rounds.map((round: any, roundIdx: number) => (
+              <div key={roundIdx} className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/20">
+                <h2 className="text-lg font-bold text-white mb-3 text-center">
+                  Раунд {round.round}: {round.nValue}-Back
+                </h2>
+                <div className="space-y-2">
+                  {round.players
+                    .sort((a: any, b: any) => b.score - a.score)
+                    .map((player: any, idx: number) => (
+                      <div key={player.userId} className="flex justify-between items-center p-2 bg-white/5 rounded-lg">
+                        <span className="text-white">
+                          {idx === 0 && '🥇'} {idx === 1 && '🥈'} {idx === 2 && '🥉'}
+                          {' '}{player.isBot ? getBotName(player.userId, idx) : (idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`)}
+                        </span>
+                        <span className="text-white font-semibold">{player.score} очк.</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Общая таблица */}
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20 mb-6">
-          <h2 className="text-2xl font-bold text-white mb-6 text-center">Таблица лидеров</h2>
+          <h2 className="text-2xl font-bold text-white mb-6 text-center">
+            {isTournament ? '🏆 Итоговая таблица' : 'Таблица лидеров'}
+          </h2>
 
           <div className="space-y-3">
-            {results.rankings.map((player, idx) => {
+            {(isTournament && tournament ? tournament.rankings : results.rankings).map((player: any, idx: number) => {
               const isBot = player.isBot;
               const botInfo = room?.players.find(p => p.userId === player.userId);
 
@@ -107,9 +142,15 @@ export default function ResultsPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-white font-bold text-xl">{player.score} очк.</div>
-                    <div className="text-sm text-red-300">{player.mistakes} ошиб.</div>
-                    <div className="text-sm text-green-300">{player.correctAnswers} верн.</div>
+                    <div className="text-white font-bold text-xl">
+                      {isTournament ? player.totalScore : player.score} очк.
+                    </div>
+                    <div className="text-sm text-red-300">
+                      {isTournament ? player.totalMistakes : player.mistakes} ошиб.
+                    </div>
+                    {!isTournament && (
+                      <div className="text-sm text-green-300">{player.correctAnswers} верн.</div>
+                    )}
                   </div>
                 </div>
               );

@@ -107,13 +107,22 @@ export default function DashboardPage() {
               className="group bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-pink-400 transition-all duration-300 text-left"
             >
               <div className="text-6xl mb-4">✨</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Создать новую игру</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">Обычная игра</h2>
               <p className="text-purple-200">Создайте комнату и пригласите друзей</p>
             </button>
 
             <button
+              onClick={() => router.push('/create-room?tournament=1')}
+              className="group bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-yellow-400 transition-all duration-300 text-left"
+            >
+              <div className="text-6xl mb-4">🏆</div>
+              <h2 className="text-2xl font-bold text-white mb-2">Турнирный режим</h2>
+              <p className="text-purple-200">3 раунда: 1-Back → 2-Back → 3-Back</p>
+            </button>
+
+            <button
               onClick={() => router.push('/join-room')}
-              className="group bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-cyan-400 transition-all duration-300 text-left"
+              className="group bg-white/10 backdrop-blur-lg border-2 border-white/20 rounded-2xl p-8 hover:bg-white/20 hover:border-cyan-400 transition-all duration-300 text-left md:col-span-2"
             >
               <div className="text-6xl mb-4">🚀</div>
               <h2 className="text-2xl font-bold text-white mb-2">Присоединиться</h2>

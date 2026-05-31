@@ -89,22 +89,28 @@ export default function RoomPage() {
     }
   }, [gameState, room]);
 
-  // Редирект на страницу результатов при окончании игры
+  // Редирект при окончании игры
   useEffect(() => {
     const isComplete = gameState?.isComplete ?? false;
     if (isComplete && !gameCompletedRef.current) {
       gameCompletedRef.current = true;
-      // Очищаем таймеры
       if (autoIntervalRef.current) {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
       }
+      
+      // Для турниров — на страницу раундов, для обычных — на результаты
+      const isTournament = room?.room.isTournament ?? false;
+      const target = isTournament 
+        ? `/room/${roomId}/tournament` 
+        : `/room/${roomId}/results`;
+      
       const timeout = setTimeout(() => {
-        router.push(`/room/${roomId}/results`);
+        router.push(target);
       }, 1000);
       return () => clearTimeout(timeout);
     }
-  }, [gameState?.isComplete, roomId, router]);
+  }, [gameState?.isComplete, room?.room.isTournament, roomId, router]);
       
   // Очистка таймеров при размонтировании
   useEffect(() => {
@@ -136,7 +142,6 @@ export default function RoomPage() {
       setStimulusInterval(2000);
       setCurrentIndex(0);
       
-      // Очищаем все таймеры перед стартом
       if (autoIntervalRef.current) {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
@@ -146,7 +151,34 @@ export default function RoomPage() {
         answerTimeoutRef.current = null;
       }
       
-      // Сразу переключаем на первый стимул
+      nextStimulusMutation.mutate({ roomId });
+    },
+  });
+
+  const startTournamentRoundMutation = trpc.game.startTournamentRound.useMutation({
+    onSuccess: () => {
+      setIsGameRunning(true);
+      
+      gameCompletedRef.current = false;
+      currentIndexRef.current = 0;
+      lastStimulusIndexRef.current = 0;
+      isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
+      setHasAnsweredForCurrentStimulus(false);
+      setSpeedLevel(0);
+      stimulusIntervalRef.current = 2000;
+      setStimulusInterval(2000);
+      setCurrentIndex(0);
+      
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
+      }
+      
       nextStimulusMutation.mutate({ roomId });
     },
   });
@@ -322,8 +354,18 @@ export default function RoomPage() {
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20">
             <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-3">
               <div className="flex justify-between text-white/80">
+                <span>Режим:</span>
+                <span className="font-semibold">
+                  {room.room.isTournament ? '🏆 Турнир' : '✨ Обычный'}
+                </span>
+              </div>
+              <div className="flex justify-between text-white/80">
                 <span>N-Value:</span>
-                <span className="font-semibold">{room.room.nValue}-Back</span>
+                <span className="font-semibold">
+                  {room.room.isTournament 
+                    ? `${room.room.nValue}-Back (раунд ${room.room.tournamentRound}/3)` 
+                    : `${room.room.nValue}-Back`}
+                </span>
               </div>
               <div className="flex justify-between text-white/80">
                 <span>Игроки:</span>
@@ -430,15 +472,23 @@ export default function RoomPage() {
             </div>
 
             <button
-              onClick={() => startGameMutation.mutate({ roomId })}
-              disabled={startGameMutation.isPending || room.room.isStarted}
+              onClick={() => {
+                if (room.room.isTournament) {
+                  startTournamentRoundMutation.mutate({ roomId, round: 1 });
+                } else {
+                  startGameMutation.mutate({ roomId });
+                }
+              }}
+              disabled={startGameMutation.isPending || startTournamentRoundMutation.isPending || room.room.isStarted}
               className="w-full py-3 px-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {startGameMutation.isPending 
+              {startGameMutation.isPending || startTournamentRoundMutation.isPending
                 ? 'Запуск...' 
                 : room.room.isStarted 
                   ? 'Игра уже идёт' 
-                  : '▶️ Начать игру'}
+                  : room.room.isTournament
+                    ? '🏆 Начать турнир (1-Back)'
+                    : '▶️ Начать игру'}
             </button>
 
             <button

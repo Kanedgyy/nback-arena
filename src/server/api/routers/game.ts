@@ -296,6 +296,201 @@ export const gameRouter = router({
       };
     }),
 
+  startTournamentRound: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+      round: z.number().int().min(1).max(3),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        console.log('Starting tournament round', input.round, 'in room:', input.roomId);
+        
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        if (roomResult.length === 0) {
+          throw new Error('Room not found');
+        }
+        const room = roomResult[0];
+
+        if (!room.isTournament) {
+          throw new Error('Not a tournament room');
+        }
+
+        const nValue = input.round; // Round 1 = 1-Back, Round 2 = 2-Back, Round 3 = 3-Back
+        const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+        
+        if (players.length < 1) {
+          throw new Error('Need at least 1 player');
+        }
+
+        // Очищаем старое состояние
+        roomStatesCache.delete(input.roomId);
+        
+        // Создаём новое состояние для раунда
+        const newRoomState = createRoomState(input.roomId, { nValue });
+        
+        for (const player of players) {
+          if (player.isBot && player.botDifficulty !== null) {
+            const { getBotAccuracy } = await import('@/server/game/nback-engine');
+            const accuracy = getBotAccuracy(player.botDifficulty);
+            addPlayer(newRoomState, player.userId, true, accuracy);
+          } else {
+            addPlayer(newRoomState, player.userId, false, 0);
+          }
+        }
+
+        await saveRoomState(input.roomId, newRoomState);
+        
+        newRoomState.isRunning = true;
+        await saveRoomState(input.roomId, newRoomState);
+
+        processBotAnswers(newRoomState);
+        await saveRoomState(input.roomId, newRoomState);
+
+        await db.update(rooms)
+          .set({ 
+            isStarted: true, 
+            nValue,
+            tournamentRound: input.round,
+            gameStateJson: null, // будет перезаписано saveRoomState
+          })
+          .where(eq(rooms.id, input.roomId));
+        
+        // Сбрасываем score/mistakes для раунда
+        await db.update(roomPlayers)
+          .set({ score: 0, mistakes: 0 })
+          .where(eq(roomPlayers.roomId, input.roomId));
+        
+        return {
+          success: true,
+          round: input.round,
+          nValue,
+          grid: newRoomState.sequence.map(s => s.position),
+        };
+      } catch (error) {
+        console.error('Start tournament round error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to start round');
+      }
+    }),
+
+  nextTournamentRound: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        if (roomResult.length === 0) {
+          throw new Error('Room not found');
+        }
+        const room = roomResult[0];
+
+        if (!room.isTournament) {
+          throw new Error('Not a tournament room');
+        }
+
+        // Сохраняем результаты текущего раунда
+        const roomState = await loadRoomState(input.roomId);
+        const roundResults = roomState ? Array.from(roomState.players.values()).map(p => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: p.score,
+          mistakes: p.mistakes,
+          correctAnswers: p.correctAnswers,
+        })) : [];
+
+        // Обновляем tournamentResultsJson
+        const existingResults = room.tournamentResultsJson ? JSON.parse(room.tournamentResultsJson) : [];
+        existingResults.push({
+          round: room.tournamentRound,
+          nValue: room.nValue,
+          players: roundResults,
+        });
+
+        // Проверяем, есть ли ещё раунды
+        const nextRound = room.tournamentRound + 1;
+        const isComplete = nextRound > (room.tournamentTotalRounds || 3);
+
+        await db.update(rooms)
+          .set({
+            isStarted: false,
+            tournamentResultsJson: JSON.stringify(existingResults),
+            gameStateJson: null,
+            ...(isComplete ? {} : { tournamentRound: nextRound }),
+          })
+          .where(eq(rooms.id, input.roomId));
+
+        // Сбрасываем score/mistakes
+        await db.update(roomPlayers)
+          .set({ score: 0, mistakes: 0 })
+          .where(eq(roomPlayers.roomId, input.roomId));
+
+        roomStatesCache.delete(input.roomId);
+
+        return {
+          success: true,
+          nextRound: isComplete ? null : nextRound,
+          isComplete,
+          roundResults,
+        };
+      } catch (error) {
+        console.error('Next tournament round error:', error);
+        throw new Error(error instanceof Error ? error.message : 'Failed to advance round');
+      }
+    }),
+
+  getTournamentResults: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+      if (roomResult.length === 0) {
+        throw new Error('Room not found');
+      }
+      const room = roomResult[0];
+
+      if (!room.isTournament) {
+        throw new Error('Not a tournament room');
+      }
+
+      const rounds = room.tournamentResultsJson ? JSON.parse(room.tournamentResultsJson) : [];
+      const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
+
+      // Считаем суммарные очки
+      const totals = new Map<string, { userId: string; isBot: boolean; totalScore: number; totalMistakes: number }>();
+      
+      for (const round of rounds) {
+        for (const p of round.players) {
+          const existing = totals.get(p.userId);
+          if (existing) {
+            existing.totalScore += p.score;
+            existing.totalMistakes += p.mistakes;
+          } else {
+            totals.set(p.userId, {
+              userId: p.userId,
+              isBot: p.isBot,
+              totalScore: p.score,
+              totalMistakes: p.mistakes,
+            });
+          }
+        }
+      }
+
+      const rankings = Array.from(totals.values())
+        .sort((a, b) => b.totalScore - a.totalScore)
+        .map((p, i) => ({ ...p, rank: i + 1 }));
+
+      return {
+        roomName: room.name,
+        currentRound: room.tournamentRound,
+        totalRounds: room.tournamentTotalRounds,
+        isComplete: room.tournamentRound >= (room.tournamentTotalRounds || 3),
+        rounds,
+        rankings,
+        players,
+      };
+    }),
+
   rematch: publicProcedure
     .input(z.object({
       roomId: z.string(),

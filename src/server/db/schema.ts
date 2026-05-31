@@ -19,6 +19,10 @@ export const rooms = pgTable('rooms', {
   nValue: integer('n_value').notNull().default(2),
   maxPlayers: integer('max_players').notNull().default(4),
   isStarted: boolean('is_started').notNull().default(false),
+  isTournament: boolean('is_tournament').notNull().default(false),
+  tournamentRound: integer('tournament_round').notNull().default(0),
+  tournamentTotalRounds: integer('tournament_total_rounds').notNull().default(3),
+  tournamentResultsJson: text('tournament_results_json'), // [{round:1, nValue:1, players:[{userId, score, mistakes}]}]
   gameStateJson: text('game_state_json'), // Serialized room state for serverless persistence
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -125,6 +129,10 @@ export interface Room {
   nValue: number;
   maxPlayers: number;
   isStarted: boolean;
+  isTournament: boolean;
+  tournamentRound: number;
+  tournamentTotalRounds: number;
+  tournamentResultsJson: string | null;
   gameStateJson: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -137,6 +145,10 @@ export interface NewRoom {
   nValue?: number;
   maxPlayers?: number;
   isStarted?: boolean;
+  isTournament?: boolean;
+  tournamentRound?: number;
+  tournamentTotalRounds?: number;
+  tournamentResultsJson?: string | null;
   gameStateJson?: string | null;
   createdAt?: Date;
   updatedAt?: Date;

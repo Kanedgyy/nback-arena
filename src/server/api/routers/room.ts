@@ -11,27 +11,29 @@ export const roomRouter = router({
       name: z.string().min(1).max(255),
       nValue: z.number().int().min(1).max(5).default(2),
       maxPlayers: z.number().int().min(2).max(6).default(4),
+      isTournament: z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {
       try {
         console.log('Creating room:', input);
         
-        // Генерируем UUID для hostId
         const hostId = crypto.randomUUID();
         
         const newRoomResult = await db.insert(rooms).values({
           name: input.name,
           hostId: hostId,
-          nValue: input.nValue,
+          nValue: input.isTournament ? 1 : input.nValue,
           maxPlayers: input.maxPlayers,
           isStarted: false,
+          isTournament: input.isTournament,
+          tournamentRound: 0,
+          tournamentTotalRounds: input.isTournament ? 3 : 0,
+          tournamentResultsJson: input.isTournament ? '[]' : null,
         }).returning();
         
         const newRoom = newRoomResult[0] as Room;
-
         console.log('Room created:', newRoom.id);
 
-        // Добавляем хоста как первого игрока в БД
         await db.insert(roomPlayers).values({
           id: crypto.randomUUID(),
           roomId: newRoom.id,
@@ -42,18 +44,16 @@ export const roomRouter = router({
           isBot: false,
         } as NewRoomPlayer);
 
-        // Инициализируем игровое состояние
         const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
         const roomState = createRoomState(newRoom.id, {
-          nValue: input.nValue,
+          nValue: input.isTournament ? 1 : input.nValue,
         });
         addPlayer(roomState, hostId, false, 0);
         
-        // Сохраняем состояние игры
         const { setRoomState } = await import('@/server/api/routers/game');
         await setRoomState(newRoom.id, roomState);
 
-        return { id: newRoom.id, name: newRoom.name };
+        return { id: newRoom.id, name: newRoom.name, isTournament: input.isTournament };
       } catch (error) {
         console.error('Create room error:', error);
         throw new Error(error instanceof Error ? error.message : 'Failed to create room');

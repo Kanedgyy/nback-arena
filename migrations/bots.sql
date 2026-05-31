@@ -1,4 +1,4 @@
--- Migration: Add bot support, sessions table, password field, and game state persistence
+-- Migration: Add bot support, sessions table, password field, game state persistence, and tournament mode
 
 -- Add bot fields to room_players
 ALTER TABLE room_players 
@@ -8,6 +8,13 @@ ADD COLUMN IF NOT EXISTS bot_difficulty INTEGER;
 -- Add password field to users
 ALTER TABLE users 
 ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+
+-- Add tournament fields to rooms
+ALTER TABLE rooms 
+ADD COLUMN IF NOT EXISTS is_tournament BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS tournament_round INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS tournament_total_rounds INTEGER NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS tournament_results_json TEXT;
 
 -- Add game state JSON for serverless persistence
 ALTER TABLE rooms 
