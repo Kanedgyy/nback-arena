@@ -16,7 +16,7 @@ function AuthPage() {
   const signInMutation = trpc.auth.signIn.useMutation({
     onSuccess: (data) => {
       console.log('Sign in success:', data);
-      localStorage.setItem('nback_user', JSON.stringify({ name: data.name, email: data.email }));
+      localStorage.setItem('nback_user', JSON.stringify({ name: data.user.name || 'Игрок', email: data.user.email }));
       router.push('/dashboard');
     },
     onError: (error) => {
@@ -28,7 +28,7 @@ function AuthPage() {
   const signUpMutation = trpc.auth.signUp.useMutation({
     onSuccess: (data) => {
       console.log('Sign up success:', data);
-      localStorage.setItem('nback_user', JSON.stringify({ name: data.name, email: data.email }));
+      localStorage.setItem('nback_user', JSON.stringify({ name: data.user.name || 'Игрок', email: data.user.email }));
       router.push('/dashboard');
     },
     onError: (error) => {
