@@ -106,14 +106,14 @@ function AuthPage() {
 
             <div>
               <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                Email
+                Email или Имя пользователя
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="example@email.com"
+                placeholder="email@example.com или ваше имя"
                 className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
               />
             </div>
@@ -133,19 +133,19 @@ function AuthPage() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoginMode ? signInMutation.isPending : signUpMutation.isPending}
-              className={`w-full py-3 px-4 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                isLoginMode
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-                  : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700'
-              } text-white shadow-lg`}
-            >
-              {isLoginMode
-                ? (signInMutation.isPending ? 'Вход...' : '🔐 Войти')
-                : (signUpMutation.isPending ? 'Регистрация...' : '✨ Создать аккаунт')}
-            </button>
+              <button
+                type="submit"
+                disabled={isLoginMode ? signInMutation.isPending : signUpMutation.isPending}
+                className={`w-full py-3 px-4 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isLoginMode
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
+                    : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700'
+                } text-white shadow-lg`}
+              >
+                {isLoginMode
+                  ? (signInMutation.isPending ? 'Вход...' : '🔐 Войти по Email или Имени')
+                  : (signUpMutation.isPending ? 'Регистрация...' : '✨ Создать аккаунт')}
+              </button>
           </form>
         </div>
       </div>

@@ -35,17 +35,26 @@ export const authRouter = router({
 
   signIn: publicProcedure
     .input(z.object({
-      email: z.string().email(),
+      email: z.string(),
       password: z.string(),
     }))
     .mutation(async ({ input }) => {
       try {
         console.log('Sign in attempt:', input.email);
         
-        const user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        // Проверяем сначала по email, если не найдено - по имени
+        let user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
         
+        if (user.length === 0 && input.email.includes('@')) {
+          // Если это email и не нашли - пробуем как имя
+          user = await db.select().from(users).where(eq(users.name, input.email)).limit(1);
+        } else if (user.length === 0) {
+          // Если не email - пробуем как имя
+          user = await db.select().from(users).where(eq(users.name, input.email)).limit(1);
+        }
+
         if (user.length === 0) {
-          throw new Error('Invalid email or password');
+          throw new Error('Invalid email, name or password');
         }
 
         console.log('User found:', user[0].id);
