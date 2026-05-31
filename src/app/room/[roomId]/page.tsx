@@ -142,7 +142,7 @@ export default function RoomPage() {
       answerTimeoutRef.current = null;
     }
     
-    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${room.currentIndex - 1}`);
+    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${currentIndex - 1}`);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
     // Переключаем стимул через 1.5 секунды
