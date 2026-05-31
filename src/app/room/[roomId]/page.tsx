@@ -54,9 +54,22 @@ export default function RoomPage() {
         isAnsweringRef.current = false;
         setHasAnsweredForCurrentStimulus(false);
         setLastStimulusIndex(gameState.currentIndex);
+        if (answerTimeoutRef.current) {
+          clearTimeout(answerTimeoutRef.current);
+          answerTimeoutRef.current = null;
+        }
       }
     }
   }, [gameState, room, lastStimulusIndex]);
+      
+  // Очистка таймера при размонтировании
+  useEffect(() => {
+    return () => {
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+      }
+    };
+  }, []);
       
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
@@ -81,7 +94,14 @@ export default function RoomPage() {
         setIsGameRunning(false);
       }
     },
+    onError: () => {
+      // При ошибке тоже сбрасываем флаг
+      isAnsweringRef.current = false;
+      setHasAnsweredForCurrentStimulus(false);
+    },
   });
+
+  const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAnswer = (answer: boolean) => {
     // Атомарная проверка и установка флага
@@ -94,11 +114,44 @@ export default function RoomPage() {
     isAnsweringRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
     
+    // Очищаем предыдущий таймер если есть
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+    }
+    
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
-    // Переключаем стимул через 1.5 секунды
-    setTimeout(() => {
+    // Устанавливаем таймер переключения
+    answerTimeoutRef.current = setTimeout(() => {
       nextStimulusMutation.mutate({ roomId });
+      answerTimeoutRef.current = null;
+    }, 1500);
+  };
+
+  const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleAnswer = (answer: boolean) => {
+    // Атомарная проверка и установка флага
+    if (!room || !isGameRunning || isAnsweringRef.current) return;
+    
+    const playerId = room.players[0]?.userId;
+    if (!playerId) return;
+    
+    // Блокируем атомарно через useRef
+    isAnsweringRef.current = true;
+    setHasAnsweredForCurrentStimulus(true);
+    
+    // Очищаем предыдущий таймер если есть
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+    }
+    
+    submitAnswerMutation.mutate({ roomId, playerId, answer });
+    
+    // Устанавливаем таймер переключения
+    answerTimeoutRef.current = setTimeout(() => {
+      nextStimulusMutation.mutate({ roomId });
+      answerTimeoutRef.current = null;
     }, 1500);
   };
 
@@ -107,13 +160,19 @@ export default function RoomPage() {
     if (!isGameRunning || isAnsweringRef.current) return;
 
     const interval = setInterval(() => {
-      nextStimulusMutation.mutate({ roomId });
+      if (!isAnsweringRef.current) {
+        nextStimulusMutation.mutate({ roomId });
+      }
     }, 2000);
 
     return () => {
       clearInterval(interval);
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
+      }
     };
-  }, [isGameRunning, roomId, isAnsweringRef.current]);
+  }, [isGameRunning, roomId]);
 
   if (!room) {
     return (
