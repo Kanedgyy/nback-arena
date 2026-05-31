@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { trpc } from '@/trpc';
 import { GameGrid } from '@/components/GameGrid';
@@ -24,6 +24,7 @@ export default function RoomPage() {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
+  const isAnsweringRef = useRef(false);
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
@@ -50,6 +51,7 @@ export default function RoomPage() {
       
       // Сбрасываем флаг ответа когда приходит новый стимул
       if (gameState.currentIndex !== lastStimulusIndex) {
+        isAnsweringRef.current = false;
         setHasAnsweredForCurrentStimulus(false);
         setLastStimulusIndex(gameState.currentIndex);
       }
@@ -71,7 +73,8 @@ export default function RoomPage() {
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      // Разблокируем кнопку ПОСЛЕ успешного переключения стимула
+      // Сбрасываем оба флага после успешного переключения стимула
+      isAnsweringRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       
       if (data.isComplete) {
@@ -81,13 +84,16 @@ export default function RoomPage() {
   });
 
   const handleAnswer = (answer: boolean) => {
-    if (!room || !isGameRunning || hasAnsweredForCurrentStimulus) return;
+    // Атомарная проверка и установка флага
+    if (!room || !isGameRunning || isAnsweringRef.current) return;
     
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
-    // Блокируем кнопку СРАЗУ
+    // Блокируем атомарно через useRef
+    isAnsweringRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
+    
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
     // Переключаем стимул через 1.5 секунды
@@ -98,7 +104,7 @@ export default function RoomPage() {
 
   // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
   useEffect(() => {
-    if (!isGameRunning || hasAnsweredForCurrentStimulus) return;
+    if (!isGameRunning || isAnsweringRef.current) return;
 
     const interval = setInterval(() => {
       nextStimulusMutation.mutate({ roomId });
@@ -107,7 +113,7 @@ export default function RoomPage() {
     return () => {
       clearInterval(interval);
     };
-  }, [isGameRunning, roomId, hasAnsweredForCurrentStimulus]);
+  }, [isGameRunning, roomId, isAnsweringRef.current]);
 
   if (!room) {
     return (
@@ -183,7 +189,7 @@ export default function RoomPage() {
 
               <GameControls
                 onSubmitAnswer={handleAnswer}
-                isGameRunning={isGameRunning && !hasAnsweredForCurrentStimulus}
+                isGameRunning={isGameRunning && !isAnsweringRef.current}
               />
             </div>
 
