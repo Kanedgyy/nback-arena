@@ -51,7 +51,7 @@ export const roomRouter = router({
         
         // Сохраняем состояние игры
         const { setRoomState } = await import('@/server/api/routers/game');
-        setRoomState(newRoom.id, roomState);
+        await setRoomState(newRoom.id, roomState);
 
         return { id: newRoom.id, name: newRoom.name };
       } catch (error) {
@@ -99,7 +99,7 @@ export const roomRouter = router({
         // Добавляем игрока в состояние игры
         const { getRoomState } = await import('@/server/api/routers/game');
         const { addPlayer } = await import('@/server/game/nback-engine');
-        const roomState = getRoomState(input.sessionId);
+        const roomState = await getRoomState(input.sessionId);
         if (roomState) {
           addPlayer(roomState, playerUserId, false, 0);
         }
@@ -141,7 +141,7 @@ export const roomRouter = router({
         console.log('Adding bot to room:', input.roomId, 'difficulty:', input.difficulty);
         
         const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
-        const room = roomResult[0] as typeof rooms.$inferSelect;
+        const room = roomResult[0] as Room;
         if (!room) {
           throw new Error('Room not found');
         }
@@ -175,7 +175,7 @@ export const roomRouter = router({
         // Добавляем бота в состояние игры
         const { getRoomState } = await import('@/server/api/routers/game');
         const { addPlayer } = await import('@/server/game/nback-engine');
-        const roomState = getRoomState(input.roomId);
+        const roomState = await getRoomState(input.roomId);
         if (roomState) {
           addPlayer(roomState, botUserId, true, accuracy);
         }
@@ -235,7 +235,7 @@ export const roomRouter = router({
         // Удаляем из состояния игры
         const { getRoomState } = await import('@/server/api/routers/game');
         const { removePlayer } = await import('@/server/game/nback-engine');
-        const roomState = getRoomState(input.roomId);
+        const roomState = await getRoomState(input.roomId);
         if (roomState) {
           removePlayer(roomState, input.botId);
         }

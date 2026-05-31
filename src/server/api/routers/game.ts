@@ -13,13 +13,83 @@ import {
   checkSpeedIncrease, 
   advanceStimulus, 
   resetPlayerResponses,
-  simulateBotResponse,
   type RoomState,
-  type Stimulus
+  type Stimulus,
+  type PlayerState,
 } from '@/server/game/nback-engine';
 
-// In-memory room states (for Vercel serverless, we'll use polling)
-const roomStates = new Map<string, RoomState>();
+// In-memory cache (for performance)
+const roomStatesCache = new Map<string, RoomState>();
+
+// Load room state from DB or cache
+async function loadRoomState(roomId: string): Promise<RoomState | null> {
+  // Check cache first
+  const cached = roomStatesCache.get(roomId);
+  if (cached) return cached;
+
+  // Load from DB
+  const roomResult = await db.select().from(rooms).where(eq(rooms.id, roomId)).limit(1);
+  const room = roomResult[0];
+  if (!room || !room.gameStateJson) return null;
+
+  try {
+    const parsed = JSON.parse(room.gameStateJson);
+    const roomState = createRoomState(roomId, { nValue: parsed.nValue });
+    
+    // Restore sequence
+    roomState.sequence = parsed.sequence;
+    roomState.currentIndex = parsed.currentIndex;
+    roomState.isRunning = parsed.isRunning;
+    roomState.speedLevel = parsed.speedLevel;
+    roomState.stimulusInterval = parsed.stimulusInterval;
+    
+    // Restore players
+    for (const p of parsed.players) {
+      const player: PlayerState = {
+        userId: p.userId,
+        isBot: p.isBot,
+        botAccuracy: p.botAccuracy,
+        score: p.score,
+        mistakes: p.mistakes,
+        correctAnswers: p.correctAnswers,
+        lastResponse: p.lastResponse,
+      };
+      roomState.players.set(p.userId, player);
+    }
+    
+    roomStatesCache.set(roomId, roomState);
+    return roomState;
+  } catch (e) {
+    console.error('Failed to parse game state:', e);
+    return null;
+  }
+}
+
+// Save room state to DB and cache
+async function saveRoomState(roomId: string, roomState: RoomState) {
+  const players = Array.from(roomState.players.values()).map(p => ({
+    userId: p.userId,
+    isBot: p.isBot,
+    botAccuracy: p.botAccuracy,
+    score: p.score,
+    mistakes: p.mistakes,
+    correctAnswers: p.correctAnswers,
+    lastResponse: p.lastResponse,
+  }));
+  
+  const stateJson = JSON.stringify({
+    nValue: roomState.nValue,
+    sequence: roomState.sequence,
+    currentIndex: roomState.currentIndex,
+    isRunning: roomState.isRunning,
+    speedLevel: roomState.speedLevel,
+    stimulusInterval: roomState.stimulusInterval,
+    players,
+  });
+  
+  await db.update(rooms).set({ gameStateJson: stateJson }).where(eq(rooms.id, roomId));
+  roomStatesCache.set(roomId, roomState);
+}
 
 export const gameRouter = router({
   start: publicProcedure
@@ -40,41 +110,39 @@ export const gameRouter = router({
           throw new Error('Need at least 1 player to start');
         }
 
-        // Проверяем, есть ли уже состояние игры
-        const existingRoomState = roomStates.get(input.roomId);
+        // Создаём новое состояние
+        const newRoomState = createRoomState(input.roomId, {
+          nValue: room[0].nValue,
+        });
         
-        if (!existingRoomState) {
-          // Создаём новое состояние
-          const newRoomState = createRoomState(input.roomId, {
-            nValue: room[0].nValue,
-          });
-          
-          // Добавляем игроков из БД с правильной конфигурацией ботов
-          for (const player of players) {
-            if (player.isBot && player.botDifficulty !== null) {
-              const { getBotAccuracy } = await import('@/server/game/nback-engine');
-              const accuracy = getBotAccuracy(player.botDifficulty);
-              addPlayer(newRoomState, player.userId, true, accuracy);
-            } else {
-              addPlayer(newRoomState, player.userId, false, 0);
-            }
+        // Добавляем игроков с правильной конфигурацией ботов
+        for (const player of players) {
+          if (player.isBot && player.botDifficulty !== null) {
+            const { getBotAccuracy } = await import('@/server/game/nback-engine');
+            const accuracy = getBotAccuracy(player.botDifficulty);
+            addPlayer(newRoomState, player.userId, true, accuracy);
+          } else {
+            addPlayer(newRoomState, player.userId, false, 0);
           }
-
-          roomStates.set(input.roomId, newRoomState);
         }
 
+        // Сохраняем состояние в БД
+        await saveRoomState(input.roomId, newRoomState);
+
         // Запускаем игру
-        const roomState = roomStates.get(input.roomId)!;
+        const roomState = newRoomState;
         roomState.isRunning = true;
+        await saveRoomState(input.roomId, roomState);
 
         // Боты отвечают на начальный стимул
         processBotAnswers(roomState);
+        await saveRoomState(input.roomId, roomState);
 
         // Update room status
         await db.update(rooms).set({ isStarted: true }).where(eq(rooms.id, input.roomId));
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           grid: roomState.sequence.map(s => s.position),
           playerCount: players.length,
         };
@@ -89,7 +157,7 @@ export const gameRouter = router({
       roomId: z.string(),
     }))
     .query(async ({ input }) => {
-      const roomState = roomStates.get(input.roomId);
+      const roomState = await loadRoomState(input.roomId);
       if (!roomState || !roomState.isRunning) {
         return null;
       }
@@ -124,34 +192,31 @@ export const gameRouter = router({
       roomId: z.string(),
       playerId: z.string(),
       answer: z.boolean(),
-      stimulusIndex: z.number().optional(), // Optional: if not provided, uses current index
+      stimulusIndex: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      try {
-        const roomState = roomStates.get(input.roomId);
-        if (!roomState) {
-          throw new Error('Game state not found. Please restart the game.');
-        }
-
-        // Use provided stimulusIndex or default to currentIndex - 1
-        const stimulusIndex = input.stimulusIndex ?? roomState.currentIndex - 1;
-        const result = validateAnswer(roomState, input.playerId, input.answer, stimulusIndex);
-        const speedIncreased = checkSpeedIncrease(roomState);
-        const currentPlayer = roomState.players.get(input.playerId);
-
-        return {
-          success: true,
-          correct: result.correct,
-          score: currentPlayer?.score || 0,
-          mistakes: currentPlayer?.mistakes || 0,
-          correctAnswers: currentPlayer?.correctAnswers || 0,
-          speedIncreased,
-          isComplete: roomState.currentIndex >= roomState.sequence.length,
-        };
-      } catch (error) {
-        console.error('Submit answer error:', error);
-        throw new Error(error instanceof Error ? error.message : 'Failed to submit answer');
+      const roomState = await loadRoomState(input.roomId);
+      if (!roomState) {
+        throw new Error('Game state not found. Please restart the game.');
       }
+
+      const stimulusIndex = input.stimulusIndex ?? roomState.currentIndex - 1;
+      const result = validateAnswer(roomState, input.playerId, input.answer, stimulusIndex);
+      const speedIncreased = checkSpeedIncrease(roomState);
+      const currentPlayer = roomState.players.get(input.playerId);
+
+      // Сохраняем после ответа
+      await saveRoomState(input.roomId, roomState);
+
+      return {
+        success: true,
+        correct: result.correct,
+        score: currentPlayer?.score || 0,
+        mistakes: currentPlayer?.mistakes || 0,
+        correctAnswers: currentPlayer?.correctAnswers || 0,
+        speedIncreased,
+        isComplete: roomState.currentIndex >= roomState.sequence.length,
+      };
     }),
 
   nextStimulus: publicProcedure
@@ -159,17 +224,19 @@ export const gameRouter = router({
       roomId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      let roomState = roomStates.get(input.roomId);
+      const roomState = await loadRoomState(input.roomId);
       if (!roomState) {
-        // Не пересоздаём состояние — оно должно существовать после start
         throw new Error('Game state not found. Please restart the game.');
       }
 
-      // Боты отвечают на текущий стимул ПЕРЕД переходом к следующему
+      // Боты отвечают на текущий стимул ПЕРЕД переходом
       processBotAnswers(roomState);
 
       advanceStimulus(roomState);
       resetPlayerResponses(roomState);
+
+      // Сохраняем после перехода
+      await saveRoomState(input.roomId, roomState);
 
       const currentStimulus = getCurrentStimulus(roomState);
 
@@ -182,7 +249,8 @@ export const gameRouter = router({
     }),
 });
 
-// Helper: process bot answers for current stimulus
+// Helper: process bot answers for current stimulus (NEW LOGIC)
+// Bots get +10 ONLY for correctly found matches, not for "correct silence"
 function processBotAnswers(roomState: RoomState) {
   const currentIdx = roomState.currentIndex;
   if (currentIdx >= roomState.sequence.length) return;
@@ -197,17 +265,39 @@ function processBotAnswers(roomState: RoomState) {
 
   for (const player of roomState.players.values()) {
     if (player.isBot && player.botAccuracy !== undefined && player.lastResponse === null) {
-      const botAnswer = simulateBotResponse(player, actualMatch);
-      validateAnswer(roomState, player.userId, botAnswer, currentIdx);
+      const accuracy = player.botAccuracy;
+      const shouldActCorrectly = Math.random() * 100 < accuracy;
+      
+      if (actualMatch) {
+        // Есть совпадение
+        if (shouldActCorrectly) {
+          // Бот правильно нажимает "Совпадает"
+          validateAnswer(roomState, player.userId, true, currentIdx);
+        } else {
+          // Бот ошибочно НЕ нажимает - это пропуск match!
+          player.mistakes += 1;
+          player.score = Math.max(0, player.score - 10);
+          player.lastResponse = false;
+        }
+      } else {
+        // Нет совпадения
+        if (shouldActCorrectly) {
+          // Бот правильно НЕ нажимает - 0 очков, не ошибка
+          player.lastResponse = false;
+        } else {
+          // Бот ошибочно нажимает "Совпадает" - false alarm
+          validateAnswer(roomState, player.userId, true, currentIdx);
+        }
+      }
     }
   }
 }
 
 // Helper function to set room state (called from room router)
-export function setRoomState(roomId: string, state: RoomState) {
-  roomStates.set(roomId, state);
+export async function setRoomState(roomId: string, state: RoomState) {
+  await saveRoomState(roomId, state);
 }
 
-export function getRoomState(roomId: string): RoomState | undefined {
-  return roomStates.get(roomId);
+export async function getRoomState(roomId: string): Promise<RoomState | null> {
+  return await loadRoomState(roomId);
 }
