@@ -27,6 +27,8 @@ export default function RoomPage() {
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
   const isAnsweringRef = useRef(false);
 
+  const utils = trpc.useUtils();
+
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
@@ -232,11 +234,15 @@ export default function RoomPage() {
   };
 
   const addBotMutation = trpc.room.addBot.useMutation({
-    onSuccess: () => trpc.room.get.useQuery({ roomId }).refetch(),
+    onSuccess: () => {
+      utils.room.get.invalidate({ roomId });
+    },
   });
 
   const removeBotMutation = trpc.room.removeBot.useMutation({
-    onSuccess: () => trpc.room.get.useQuery({ roomId }).refetch(),
+    onSuccess: () => {
+      utils.room.get.invalidate({ roomId });
+    },
   });
 
   if (!room) {
@@ -277,13 +283,43 @@ export default function RoomPage() {
               </div>
             </div>
 
+            {/* Список всех игроков в лобби */}
+            <div className="mb-6">
+              <h3 className="text-white font-semibold mb-3">👥 Участники</h3>
+              <div className="space-y-2">
+                {room.players.map((player: any, idx: number) => (
+                  <div
+                    key={player.id}
+                    className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      {player.isBot ? (
+                        <>
+                          <span className="text-xl">🤖</span>
+                          <span className="text-white">{getBotName(player.userId, idx)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xl">👤</span>
+                          <span className="text-white">{idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`}</span>
+                        </>
+                      )}
+                    </div>
+                    {player.isBot && (
+                      <span className="text-xs text-purple-300">{getBotDifficultyLabel(player.botDifficulty)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Управление ботами */}
             <div className="mb-6">
               <h3 className="text-white font-semibold mb-3">🤖 Боты</h3>
               
               {/* Список ботов */}
               <div className="space-y-2 mb-4">
-                {room.players.filter((p: any) => p.isBot).map((bot: any) => (
+                {room.players.filter((p: any) => p.isBot).map((bot: any, botIdx: number) => (
                   <div
                     key={bot.id}
                     className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
@@ -292,7 +328,7 @@ export default function RoomPage() {
                       <span className="text-2xl">🤖</span>
                       <div>
                         <div className="text-white font-medium">
-                          {getBotName(bot.userId, room.players.indexOf(bot))}
+                          {getBotName(bot.userId, botIdx)}
                         </div>
                         <div className="text-xs text-purple-300">
                           {getBotDifficultyLabel(bot.botDifficulty)}
@@ -392,38 +428,47 @@ export default function RoomPage() {
               />
 
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
-                <h3 className="text-lg font-semibold mb-3 text-white">Игроки</h3>
+                <h3 className="text-lg font-semibold mb-3 text-white">🏆 Счёт</h3>
                 <div className="space-y-2">
-                  {room.players.map((player: any) => (
-                    <div
-                      key={player.id}
-                      className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
-                    >
-                      <div className="flex items-center gap-2">
-                        {player.isBot ? (
-                          <>
-                            <span className="text-2xl">🤖</span>
+                  {(gameState?.players || room.players).map((player: any, idx: number) => {
+                    const isBot = player.isBot;
+                    const isYou = !isBot && idx === 0;
+                    const playerScore = player.score ?? 0;
+                    const playerMistakes = player.mistakes ?? 0;
+                    
+                    return (
+                      <div
+                        key={player.userId || player.id}
+                        className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isBot ? (
+                            <>
+                              <span className="text-2xl">🤖</span>
+                              <div>
+                                <div className="text-white font-medium">
+                                  {getBotName(player.userId, idx)}
+                                </div>
+                                <div className="text-xs text-purple-300">
+                                  {getBotDifficultyLabel(player.botDifficulty)}
+                                </div>
+                              </div>
+                            </>
+                          ) : (
                             <div>
                               <div className="text-white font-medium">
-                                {getBotName(player.userId, room.players.indexOf(player))}
-                              </div>
-                              <div className="text-xs text-purple-300">
-                                {getBotDifficultyLabel(player.botDifficulty)}
+                                {isYou ? '👑 Вы' : `Игрок ${idx + 1}`}
                               </div>
                             </div>
-                          </>
-                        ) : (
-                          <span className="text-white">
-                            {player.userId === room.players[0]?.userId ? '👑 ' : ''}
-                            {player.userId === room.players[0]?.userId ? 'Вы' : `Игрок`}
-                          </span>
-                        )}
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-white font-bold">{playerScore} очк.</div>
+                          <div className="text-xs text-red-300">{playerMistakes} ошиб.</div>
+                        </div>
                       </div>
-                      <span className="text-white/60 text-sm">
-                        {player.isBot ? 'Bot' : `ID: ${player.userId.slice(0, 8)}`}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -434,7 +479,7 @@ export default function RoomPage() {
           <div className="mt-8 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/20">
             <h2 className="text-2xl font-bold mb-4 text-white">🏆 Результаты игры</h2>
             <div className="space-y-2">
-              {gameState.rankings.map((player) => (
+              {gameState.rankings.map((player, idx) => (
                 <div
                   key={player.userId}
                   className="flex justify-between items-center p-3 bg-white/5 rounded-lg"
@@ -443,7 +488,7 @@ export default function RoomPage() {
                     {player.rank === 1 && '🥇'}
                     {player.rank === 2 && '🥈'}
                     {player.rank === 3 && '🥉'}
-                    {' '}Игрок {player.userId.slice(0, 8)}
+                    {' '}{player.isBot ? getBotName(player.userId, idx) : (idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`)}
                   </span>
                   <span className="text-white font-semibold">
                     Счёт: {player.score} | Ошибок: {player.mistakes}

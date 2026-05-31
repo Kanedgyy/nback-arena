@@ -13,6 +13,7 @@ import {
   checkSpeedIncrease, 
   advanceStimulus, 
   resetPlayerResponses,
+  simulateBotResponse,
   type RoomState,
   type Stimulus
 } from '@/server/game/nback-engine';
@@ -59,6 +60,9 @@ export const gameRouter = router({
         // Запускаем игру
         const roomState = roomStates.get(input.roomId)!;
         roomState.isRunning = true;
+
+        // Боты отвечают на начальный стимул
+        processBotAnswers(roomState);
 
         // Update room status
         await db.update(rooms).set({ isStarted: true }).where(eq(rooms.id, input.roomId));
@@ -195,6 +199,9 @@ export const gameRouter = router({
       advanceStimulus(roomState);
       resetPlayerResponses(roomState);
 
+      // Боты отвечают на новый текущий стимул
+      processBotAnswers(roomState);
+
       const currentStimulus = getCurrentStimulus(roomState);
 
       return {
@@ -206,19 +213,24 @@ export const gameRouter = router({
     }),
 });
 
-async function saveGameResults(roomState: RoomState) {
-  const rankings = getPlayerRankings(roomState);
+// Helper: process bot answers for current stimulus
+function processBotAnswers(roomState: RoomState) {
+  const currentIdx = roomState.currentIndex;
+  if (currentIdx >= roomState.sequence.length) return;
+
+  const nValue = roomState.nValue;
+  const nBackIdx = currentIdx - nValue;
+  let actualMatch = false;
   
-  for (const playerData of rankings) {
-    await db.insert(gameResults).values({
-      roomId: roomState.roomId,
-      userId: playerData.userId,
-      score: playerData.score,
-      mistakes: playerData.mistakes,
-      correctAnswers: playerData.correctAnswers,
-      finalSpeed: roomState.stimulusInterval,
-      rank: playerData.rank,
-    });
+  if (currentIdx >= nValue && nBackIdx >= 0) {
+    actualMatch = roomState.sequence[currentIdx].position === roomState.sequence[nBackIdx].position;
+  }
+
+  for (const player of roomState.players.values()) {
+    if (player.isBot && player.botAccuracy !== undefined && player.lastResponse === null) {
+      const botAnswer = simulateBotResponse(player, actualMatch);
+      validateAnswer(roomState, player.userId, botAnswer, currentIdx);
+    }
   }
 }
 
