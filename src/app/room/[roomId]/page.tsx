@@ -212,8 +212,32 @@ export default function RoomPage() {
     const newInterval = Math.max(2000 - (speedLevel * 200), 600);
     stimulusIntervalRef.current = newInterval;
     setStimulusInterval(newInterval);
-    console.log(`[speedLevel] Updated to level ${speedLevel}, interval: ${newInterval}ms`);
   }, [speedLevel]);
+
+  // Helper functions for bot display
+  const getBotName = (botId: string, index: number): string => {
+    const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega'];
+    const prefixes = ['Speedy', 'Quick', 'Sharp', 'Brainy', 'Ninja'];
+    return `${prefixes[index % prefixes.length]} ${names[index % names.length]}`;
+  };
+
+  const getBotDifficultyLabel = (difficulty: number | null): string => {
+    if (difficulty === null) return '';
+    switch (difficulty) {
+      case 1: return '🟢 Легко';
+      case 2: return '🟡 Средне';
+      case 3: return '🔴 Сложно';
+      default: return '';
+    }
+  };
+
+  const addBotMutation = trpc.room.addBot.useMutation({
+    onSuccess: () => trpc.room.get.useQuery({ roomId }).refetch(),
+  });
+
+  const removeBotMutation = trpc.room.removeBot.useMutation({
+    onSuccess: () => trpc.room.get.useQuery({ roomId }).refetch(),
+  });
 
   if (!room) {
     return (
@@ -243,13 +267,75 @@ export default function RoomPage() {
               </div>
               <div className="flex justify-between text-white/80">
                 <span>Игроки:</span>
-                <span className="font-semibold">{room.players.length}</span>
+                <span className="font-semibold">{room.players.length} / {room.room.maxPlayers}</span>
               </div>
               <div className="flex justify-between text-white/80">
                 <span>Статус:</span>
                 <span className="font-semibold">
                   {room.room.isStarted ? '🔴 Идёт игра' : '🟢 Ожидание'}
                 </span>
+              </div>
+            </div>
+
+            {/* Управление ботами */}
+            <div className="mb-6">
+              <h3 className="text-white font-semibold mb-3">🤖 Боты</h3>
+              
+              {/* Список ботов */}
+              <div className="space-y-2 mb-4">
+                {room.players.filter((p: any) => p.isBot).map((bot: any) => (
+                  <div
+                    key={bot.id}
+                    className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🤖</span>
+                      <div>
+                        <div className="text-white font-medium">
+                          {getBotName(bot.userId, room.players.indexOf(bot))}
+                        </div>
+                        <div className="text-xs text-purple-300">
+                          {getBotDifficultyLabel(bot.botDifficulty)}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeBotMutation.mutate({ roomId, botId: bot.userId })}
+                      disabled={removeBotMutation.isPending}
+                      className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-sm transition-all disabled:opacity-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {room.players.filter((p: any) => p.isBot).length === 0 && (
+                  <div className="text-purple-300 text-sm text-center py-4">
+                    Нет ботов в комнате
+                  </div>
+                )}
+              </div>
+
+              {/* Добавление бота */}
+              <div className="flex gap-2">
+                <select
+                  id="botDifficulty"
+                  className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-pink-400"
+                  defaultValue={2}
+                >
+                  <option value={1} className="bg-white text-purple-900">Легко</option>
+                  <option value={2} className="bg-white text-purple-900">Средне</option>
+                  <option value={3} className="bg-white text-purple-900">Сложно</option>
+                </select>
+                <button
+                  onClick={() => {
+                    const difficulty = parseInt((document.getElementById('botDifficulty') as HTMLSelectElement).value);
+                    addBotMutation.mutate({ roomId, difficulty });
+                  }}
+                  disabled={addBotMutation.isPending || room.players.length >= room.room.maxPlayers}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addBotMutation.isPending ? '...' : '➕ Добавить'}
+                </button>
               </div>
             </div>
 
@@ -308,17 +394,33 @@ export default function RoomPage() {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
                 <h3 className="text-lg font-semibold mb-3 text-white">Игроки</h3>
                 <div className="space-y-2">
-                  {room.players.map((player, idx) => (
+                  {room.players.map((player: any) => (
                     <div
                       key={player.id}
                       className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
                     >
-                      <span className="text-white">
-                        {idx === 0 && '👑 '}
-                        Игрок {idx + 1}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {player.isBot ? (
+                          <>
+                            <span className="text-2xl">🤖</span>
+                            <div>
+                              <div className="text-white font-medium">
+                                {getBotName(player.userId, room.players.indexOf(player))}
+                              </div>
+                              <div className="text-xs text-purple-300">
+                                {getBotDifficultyLabel(player.botDifficulty)}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-white">
+                            {player.userId === room.players[0]?.userId ? '👑 ' : ''}
+                            {player.userId === room.players[0]?.userId ? 'Вы' : `Игрок`}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-white/60 text-sm">
-                        {idx === 0 ? 'Вы' : `ID: ${player.userId.slice(0, 8)}`}
+                        {player.isBot ? 'Bot' : `ID: ${player.userId.slice(0, 8)}`}
                       </span>
                     </div>
                   ))}
