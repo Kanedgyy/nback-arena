@@ -128,33 +128,6 @@ export default function RoomPage() {
     }, 1500);
   };
 
-  const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleAnswer = (answer: boolean) => {
-    // Атомарная проверка и установка флага
-    if (!room || !isGameRunning || isAnsweringRef.current) return;
-    
-    const playerId = room.players[0]?.userId;
-    if (!playerId) return;
-    
-    // Блокируем атомарно через useRef
-    isAnsweringRef.current = true;
-    setHasAnsweredForCurrentStimulus(true);
-    
-    // Очищаем предыдущий таймер если есть
-    if (answerTimeoutRef.current) {
-      clearTimeout(answerTimeoutRef.current);
-    }
-    
-    submitAnswerMutation.mutate({ roomId, playerId, answer });
-    
-    // Устанавливаем таймер переключения
-    answerTimeoutRef.current = setTimeout(() => {
-      nextStimulusMutation.mutate({ roomId });
-      answerTimeoutRef.current = null;
-    }, 1500);
-  };
-
   // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
   useEffect(() => {
     if (!isGameRunning || isAnsweringRef.current) return;
