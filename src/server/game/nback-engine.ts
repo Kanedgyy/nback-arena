@@ -158,6 +158,7 @@ export function validateAnswer(
     throw new Error(`Player ${userId} not found in room ${room.roomId}`);
   }
   
+  // currentIndex указывает на СЛЕДУЮЩИЙ стимул, поэтому текущий = currentIndex - 1
   const currentIndex = room.currentIndex;
   const nValue = room.nValue;
   
@@ -167,16 +168,21 @@ export function validateAnswer(
     return { correct: true, isNewMistake: false };
   }
   
-  // Ensure indices are valid
+  // Ensure we have a valid current stimulus to validate
   const currentIdx = currentIndex - 1;
-  const nBackIdx = currentIndex - 1 - nValue;
   
-  if (currentIdx < 0 || currentIdx >= room.sequence.length) {
-    return { correct: true, isNewMistake: false }; // Invalid index
+  // No stimulus yet (game hasn't started or just started)
+  if (currentIdx < 0) {
+    return { correct: true, isNewMistake: false };
   }
   
-  // Before Nth stimulus, any "match" answer is wrong (false alarm)
-  if (currentIndex < nValue) {
+  // Check if currentIdx is within bounds
+  if (currentIdx >= room.sequence.length) {
+    return { correct: true, isNewMistake: false };
+  }
+  
+  // Before Nth stimulus (index 0 to nValue-1), any "match" answer is wrong (false alarm)
+  if (currentIdx < nValue) {
     player.lastResponse = playerAnswer;
     if (playerAnswer === false) {
       // Correctly did not claim match
@@ -190,9 +196,11 @@ export function validateAnswer(
     }
   }
   
-  // Normal N-back validation
+  // Normal N-back validation: compare current stimulus with n steps back
+  const nBackIdx = currentIdx - nValue;
+  
   if (nBackIdx < 0 || nBackIdx >= room.sequence.length) {
-    return { correct: true, isNewMistake: false }; // Invalid nBack index
+    return { correct: true, isNewMistake: false };
   }
   
   const currentStimulus = room.sequence[currentIdx];
@@ -209,6 +217,8 @@ export function validateAnswer(
   } else {
     player.mistakes += 1;
   }
+  
+  console.log(`[validateAnswer] Player ${userId}: answer=${playerAnswer}, actualMatch=${actualMatch}, correct=${correct}, score=${player.score}, mistakes=${player.mistakes}, correctAnswers=${player.correctAnswers}`);
   
   return { correct, isNewMistake: !correct };
 }

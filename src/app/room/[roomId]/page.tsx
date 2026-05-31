@@ -142,10 +142,12 @@ export default function RoomPage() {
       answerTimeoutRef.current = null;
     }
     
+    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${room.currentIndex - 1}`);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
-    // Устанавливаем таймер переключения
+    // Переключаем стимул через 1.5 секунды
     answerTimeoutRef.current = setTimeout(() => {
+      console.log(`[handleAnswer] Switching to next stimulus`);
       nextStimulusMutation.mutate({ roomId });
       answerTimeoutRef.current = null;
     }, 1500);
