@@ -80,48 +80,6 @@ export default function RoomPage() {
     },
   });
 
-  const submitAnswerMutation = trpc.game.submitAnswer.useMutation({
-    onSuccess: (data) => {
-      // Обновляем все счётчики из ответа сервера
-      setScore(data.score);
-      setMistakes(data.mistakes);
-      if (data.correctAnswers !== undefined) {
-        setCorrectAnswers(data.correctAnswers);
-      }
-      setLastUpdateTime(Date.now());
-      
-      
-      // Переключаем стимул через 1.5 секунды
-      setTimeout(() => {
-        nextStimulusMutation.mutate({ roomId });
-      }, 1500);
-    },
-    onError: () => {
-      // Если произошла ошибка, всё равно переключаем стимул
-      setTimeout(() => {
-        nextStimulusMutation.mutate({ roomId });
-      }, 1000);
-    },
-  });
-
-  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
-    onSuccess: (data) => {
-      // Разблокируем кнопку ПОСЛЕ успешного переключения стимула
-      setHasAnsweredForCurrentStimulus(false);
-      
-      if (data.isComplete) {
-        setIsGameRunning(false);
-      }
-    },
-    onError: (error) => {
-      console.error('Next stimulus error:', error);
-      // Даже при ошибке разблокируем кнопку через небольшую задержку
-      setTimeout(() => {
-        setHasAnsweredForCurrentStimulus(false);
-      }, 500);
-    },
-  });
-
   const handleAnswer = (answer: boolean) => {
     if (!room || !isGameRunning || hasAnsweredForCurrentStimulus) return;
     
