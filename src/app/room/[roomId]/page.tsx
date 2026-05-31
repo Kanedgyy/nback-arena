@@ -35,30 +35,34 @@ export default function RoomPage() {
 
   // Синхронизация состояния с сервером - ЕДИНСТВЕННЫЙ источник правды
   useEffect(() => {
-    if (gameState && gameState.players && gameState.players.length > 0) {
+    if (!gameState) return;
+    
+    if (gameState.players && gameState.players.length > 0) {
       const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
       if (currentPlayer) {
         setScore(currentPlayer.score);
         setMistakes(currentPlayer.mistakes);
         setCorrectAnswers(currentPlayer.correctAnswers);
       }
+    }
       
-      // Обновляем currentIndex и другие значения
-      setCurrentIndex(gameState.currentIndex);
-      setCurrentStimulus(gameState.currentStimulus ?? null);
-      setSpeedLevel(gameState.speedLevel);
-      setIsGameRunning(gameState.isRunning);
-      setTotalStimuli(gameState.totalStimuli || 30);
-      
-      // Сбрасываем флаг ответа когда приходит новый стимул
-      if (gameState.currentIndex !== lastStimulusIndex) {
-        isAnsweringRef.current = false;
-        setHasAnsweredForCurrentStimulus(false);
-        setLastStimulusIndex(gameState.currentIndex);
-        if (answerTimeoutRef.current) {
-          clearTimeout(answerTimeoutRef.current);
-          answerTimeoutRef.current = null;
-        }
+    // Обновляем currentIndex и другие значения
+    setCurrentIndex(gameState.currentIndex);
+    setCurrentStimulus(gameState.currentStimulus ?? null);
+    setSpeedLevel(gameState.speedLevel);
+    setIsGameRunning(gameState.isRunning);
+    setTotalStimuli(gameState.totalStimuli || 30);
+    
+    // Сбрасываем флаг ответа когда приходит новый стимул
+    if (gameState.currentIndex !== lastStimulusIndex) {
+      console.log(`[gameState] New stimulus at index ${gameState.currentIndex}`);
+      isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
+      setHasAnsweredForCurrentStimulus(false);
+      setLastStimulusIndex(gameState.currentIndex);
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
       }
     }
   }, [gameState, room, lastStimulusIndex]);
@@ -79,13 +83,16 @@ export default function RoomPage() {
       
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
+      console.log('[startGame] Game started');
       setIsGameRunning(true);
       isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       setLastStimulusIndex(0);
       setSpeedLevel(0);
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
+      setCurrentIndex(0);
       
       // Очищаем все таймеры перед стартом
       if (autoIntervalRef.current) {
@@ -106,43 +113,62 @@ export default function RoomPage() {
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      // Сбрасываем оба флага после успешного переключения стимула
+      console.log(`[nextStimulus] Success, isComplete=${data.isComplete}`);
+      
+      // Сбрасываем ВСЕ флаги ПОСЛЕ успешного переключения стимула
       isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       
       if (data.isComplete) {
         setIsGameRunning(false);
       }
     },
-    onError: () => {
-      // При ошибке тоже сбрасываем флаг
-      isAnsweringRef.current = false;
-      setHasAnsweredForCurrentStimulus(false);
+    onError: (error) => {
+      console.error(`[nextStimulus] Error:`, error);
+      // При ошибке тоже сбрасываем флаг через небольшую задержку
+      setTimeout(() => {
+        isAnsweringRef.current = false;
+        isProcessingAnswerRef.current = false;
+        setHasAnsweredForCurrentStimulus(false);
+      }, 500);
     },
   });
 
   const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stimulusIntervalRef = useRef(2000);
+  const isProcessingAnswerRef = useRef(false);
 
   const handleAnswer = (answer: boolean) => {
-    // Атомарная проверка и установка флага
-    if (!room || !isGameRunning || isAnsweringRef.current) return;
+    // Атомарная проверка - только один ответ за раз
+    if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current) {
+      console.log(`[handleAnswer] Blocked: isAnswering=${isAnsweringRef.current}, isProcessing=${isProcessingAnswerRef.current}`);
+      return;
+    }
     
     const playerId = room.players[0]?.userId;
-    if (!playerId) return;
+    if (!playerId) {
+      console.log('[handleAnswer] No playerId');
+      return;
+    }
     
-    // Блокируем атомарно через useRef
+    // Атомарная блокировка
     isAnsweringRef.current = true;
+    isProcessingAnswerRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
     
-    // Очищаем предыдущий таймер если есть
+    // Очищаем все таймеры
     if (answerTimeoutRef.current) {
       clearTimeout(answerTimeoutRef.current);
       answerTimeoutRef.current = null;
     }
-    
-    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${currentIndex - 1}`);
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current);
+      autoIntervalRef.current = null;
+    }
+
+    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${currentIndex}`);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
     // Переключаем стимул через 1.5 секунды
@@ -150,6 +176,7 @@ export default function RoomPage() {
       console.log(`[handleAnswer] Switching to next stimulus`);
       nextStimulusMutation.mutate({ roomId });
       answerTimeoutRef.current = null;
+      isProcessingAnswerRef.current = false;
     }, 1500);
   };
 
@@ -164,11 +191,14 @@ export default function RoomPage() {
     }
 
     // Устанавливаем новый таймер с актуальным интервалом
+    const intervalMs = stimulusIntervalRef.current;
+    console.log(`[autoInterval] Starting timer with ${intervalMs}ms interval`);
     autoIntervalRef.current = setInterval(() => {
-      if (!isAnsweringRef.current) {
+      if (!isAnsweringRef.current && !isProcessingAnswerRef.current) {
+        console.log(`[autoInterval] Auto-switching stimulus`);
         nextStimulusMutation.mutate({ roomId });
       }
-    }, stimulusIntervalRef.current);
+    }, intervalMs);
 
     return () => {
       if (autoIntervalRef.current) {
@@ -187,6 +217,7 @@ export default function RoomPage() {
     const newInterval = Math.max(2000 - (speedLevel * 200), 600);
     stimulusIntervalRef.current = newInterval;
     setStimulusInterval(newInterval);
+    console.log(`[speedLevel] Updated to level ${speedLevel}, interval: ${newInterval}ms`);
   }, [speedLevel]);
 
   if (!room) {
@@ -263,7 +294,7 @@ export default function RoomPage() {
 
               <GameControls
                 onSubmitAnswer={handleAnswer}
-                isGameRunning={isGameRunning && !isAnsweringRef.current}
+                isGameRunning={isGameRunning && !isAnsweringRef.current && !isProcessingAnswerRef.current}
               />
             </div>
 
