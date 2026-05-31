@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { trpc } from '@/trpc';
 import { GameGrid } from '@/components/GameGrid';
@@ -22,7 +22,8 @@ export default function RoomPage() {
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
-  const isAnswerButtonLocked = useRef(false);
+  const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
+  const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
@@ -37,6 +38,13 @@ export default function RoomPage() {
       setCurrentStimulus(gameState.currentStimulus ?? null);
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
+      
+      // Сбрасываем флаг ответа когда приходит новый стимул
+      if (gameState.currentIndex !== lastStimulusIndex) {
+        setHasAnsweredForCurrentStimulus(false);
+        setLastStimulusIndex(gameState.currentIndex);
+      }
+      
       // Синхронизируем correctAnswers из gameState если есть
       if (gameState.players && gameState.players.length > 0) {
         const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
@@ -47,11 +55,13 @@ export default function RoomPage() {
         }
       }
     }
-  }, [gameState, room]);
+  }, [gameState, room, lastStimulusIndex]);
 
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
+      setHasAnsweredForCurrentStimulus(false);
+      setLastStimulusIndex(0);
     },
   });
 
@@ -65,17 +75,10 @@ export default function RoomPage() {
         setCorrectAnswers(data.correctAnswers);
       }
     },
-    onMutate: () => {
-      // Блокируем кнопку перед отправкой
-      isAnswerButtonLocked.current = true;
-    },
   });
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      // Разблокируем кнопку после переключения стимула
-      isAnswerButtonLocked.current = false;
-      
       if (data.isComplete) {
         setIsGameRunning(false);
       }
@@ -83,24 +86,31 @@ export default function RoomPage() {
   });
 
   const handleAnswer = (answer: boolean) => {
-    if (!room || !isGameRunning || isAnswerButtonLocked.current) return;
+    if (!room || !isGameRunning || hasAnsweredForCurrentStimulus) return;
     
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
+    // Блокируем кнопку
+    setHasAnsweredForCurrentStimulus(true);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
+    
+    // Переключаем стимул через 1.5 секунды
+    setTimeout(() => {
+      nextStimulusMutation.mutate({ roomId });
+    }, 1500);
   };
 
-  // Автоматическое переключение стимулов каждые 2 секунды
+  // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
   useEffect(() => {
-    if (!isGameRunning) return;
+    if (!isGameRunning || hasAnsweredForCurrentStimulus) return;
 
     const interval = setInterval(() => {
       nextStimulusMutation.mutate({ roomId });
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isGameRunning, roomId]);
+  }, [isGameRunning, roomId, hasAnsweredForCurrentStimulus]);
 
   if (!room) {
     return (
@@ -176,8 +186,7 @@ export default function RoomPage() {
 
               <GameControls
                 onSubmitAnswer={handleAnswer}
-                isGameRunning={isGameRunning}
-                disabled={isAnswerButtonLocked.current}
+                isGameRunning={isGameRunning && !hasAnsweredForCurrentStimulus}
               />
             </div>
 
