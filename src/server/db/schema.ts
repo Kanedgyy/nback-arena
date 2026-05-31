@@ -31,6 +31,8 @@ export const roomPlayers = pgTable('room_players', {
   mistakes: integer('mistakes').notNull().default(0),
   isReady: boolean('is_ready').notNull().default(false),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
+  isBot: boolean('is_bot').notNull().default(false),
+  botDifficulty: integer('bot_difficulty'), // 1=Easy, 2=Medium, 3=Hard (only for bots)
 });
 
 // Game results
@@ -66,6 +68,7 @@ export const roomPlayersRelations = relations(roomPlayers, ({ one }) => ({
     fields: [roomPlayers.userId],
     references: [users.id],
   }),
+  // Bot info would be here if we had a separate bots table
 }));
 
 export const gameResultsRelations = relations(gameResults, ({ one }) => ({
@@ -88,3 +91,11 @@ export type RoomPlayer = typeof roomPlayers.$inferSelect;
 export type NewRoomPlayer = typeof roomPlayers.$inferInsert;
 export type GameResult = typeof gameResults.$inferSelect;
 export type NewGameResult = typeof gameResults.$inferInsert;
+
+// Extend RoomPlayer type to include new fields
+declare module 'drizzle-orm' {
+  interface Table<Columns, Extra = {}> {
+    isBot?: boolean;
+    botDifficulty?: number;
+  }
+}

@@ -267,21 +267,55 @@ export function advanceStimulus(room: RoomState): void {
 }
 
 /**
- * Simulates a bot response
+ * Simulates a bot response based on difficulty level
+ * @param player - The bot player
+ * @param actualMatch - Whether there is actually a match
+ * @returns true if bot claims match, false if bot claims no match
  */
 export function simulateBotResponse(player: PlayerState, actualMatch: boolean): boolean {
   if (!player.isBot || player.botAccuracy === undefined) {
     throw new Error('Not a bot player');
   }
   
+  const accuracy = player.botAccuracy;
+  
   // Bot decides based on accuracy percentage
-  const shouldRespondCorrectly = Math.random() * 100 < player.botAccuracy;
+  const shouldRespondCorrectly = Math.random() * 100 < accuracy;
   
   if (shouldRespondCorrectly) {
     return actualMatch;
   } else {
     return !actualMatch;
   }
+}
+
+/**
+ * Gets bot accuracy based on difficulty level
+ * @param difficulty - 1=Easy, 2=Medium, 3=Hard
+ * @returns accuracy percentage (0-100)
+ */
+export function getBotAccuracy(difficulty: number): number {
+  switch (difficulty) {
+    case 1: // Easy - 50% accuracy
+      return 50;
+    case 2: // Medium - 75% accuracy
+      return 75;
+    case 3: // Hard - 90% accuracy
+      return 90;
+    default:
+      return 50;
+  }
+}
+
+/**
+ * Generates a bot name
+ * @param index - Bot index
+ * @returns Bot name
+ */
+export function generateBotName(index: number): string {
+  const names = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Omega'];
+  const prefixes = ['Speedy', 'Quick', 'Sharp', 'Brainy', 'Ninja'];
+  return `${prefixes[index % prefixes.length]} ${names[index % names.length]}`;
 }
 
 /**
