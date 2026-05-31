@@ -6,10 +6,8 @@ import { trpc } from '@/trpc';
 
 function AuthPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const mode = searchParams.get('mode') || 'create';
-
-  const [isLoginMode, setIsLoginMode] = useState(mode === 'join');
+  
+  const [isLoginMode, setIsLoginMode] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,11 +16,7 @@ function AuthPage() {
   const signInMutation = trpc.auth.signIn.useMutation({
     onSuccess: (data) => {
       console.log('Sign in success:', data);
-      if (mode === 'create') {
-        router.push('/create-room');
-      } else {
-        router.push('/join-room');
-      }
+      router.push('/dashboard');
     },
     onError: (error) => {
       console.error('Sign in error:', error);
@@ -33,11 +27,7 @@ function AuthPage() {
   const signUpMutation = trpc.auth.signUp.useMutation({
     onSuccess: (data) => {
       console.log('Sign up success:', data);
-      if (mode === 'create') {
-        router.push('/create-room');
-      } else {
-        router.push('/join-room');
-      }
+      router.push('/dashboard');
     },
     onError: (error) => {
       console.error('Sign up error:', error);
@@ -183,21 +173,9 @@ function AuthPage() {
             </form>
 
             <div className="mt-6 text-center">
-              {isLoginMode ? (
-                <button
-                  onClick={() => router.push('/join-room')}
-                  className="text-cyan-400 hover:text-cyan-300 font-semibold text-sm"
-                >
-                  Перейти к присоединению
-                </button>
-              ) : (
-                <button
-                  onClick={() => router.push('/create-room')}
-                  className="text-pink-400 hover:text-pink-300 font-semibold text-sm"
-                >
-                  Перейти к созданию комнаты
-                </button>
-              )}
+              <p className="text-purple-200 text-sm">
+                После авторизации вы сможете создать комнату или присоединиться к игре
+              </p>
             </div>
           </div>
         </div>
