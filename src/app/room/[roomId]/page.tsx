@@ -67,6 +67,9 @@ export default function RoomPage() {
       setMistakes(0);
       setCorrectAnswers(0);
       setLastUpdateTime(Date.now());
+      
+      // Сразу переключаем на первый стимул
+      nextStimulusMutation.mutate({ roomId });
     },
   });
 
@@ -79,14 +82,32 @@ export default function RoomPage() {
         setCorrectAnswers(data.correctAnswers);
       }
       setLastUpdateTime(Date.now());
+      
+      // Переключаем стимул через 1.5 секунды
+      setTimeout(() => {
+        nextStimulusMutation.mutate({ roomId });
+      }, 1500);
+    },
+    onError: () => {
+      // Если произошла ошибка, всё равно переключаем стимул
+      setTimeout(() => {
+        nextStimulusMutation.mutate({ roomId });
+      }, 1000);
     },
   });
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
+      // Разблокируем кнопку после переключения стимула
+      setHasAnsweredForCurrentStimulus(false);
+      
       if (data.isComplete) {
         setIsGameRunning(false);
       }
+    },
+    onError: () => {
+      // Даже при ошибке разблокируем кнопку
+      setHasAnsweredForCurrentStimulus(false);
     },
   });
 
@@ -99,11 +120,6 @@ export default function RoomPage() {
     // Блокируем кнопку
     setHasAnsweredForCurrentStimulus(true);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
-    
-    // Переключаем стимул через 1.5 секунды
-    setTimeout(() => {
-      nextStimulusMutation.mutate({ roomId });
-    }, 1500);
   };
 
   // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
