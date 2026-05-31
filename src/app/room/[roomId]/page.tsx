@@ -50,11 +50,6 @@ export default function RoomPage() {
       setIsGameRunning(gameState.isRunning);
       setTotalStimuli(gameState.totalStimuli || 30);
       
-      // Рассчитываем интервал на основе speedLevel
-      // baseInterval = 2000ms, каждый уровень ускоряет на 200ms
-      const newInterval = Math.max(2000 - (gameState.speedLevel * 200), 600);
-      setStimulusInterval(newInterval);
-      
       // Сбрасываем флаг ответа когда приходит новый стимул
       if (gameState.currentIndex !== lastStimulusIndex) {
         isAnsweringRef.current = false;
@@ -88,6 +83,8 @@ export default function RoomPage() {
       isAnsweringRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       setLastStimulusIndex(0);
+      setSpeedLevel(0);
+      stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
       
       // Очищаем все таймеры перед стартом
@@ -126,6 +123,7 @@ export default function RoomPage() {
 
   const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stimulusIntervalRef = useRef(2000);
 
   const handleAnswer = (answer: boolean) => {
     // Атомарная проверка и установка флага
@@ -163,12 +161,12 @@ export default function RoomPage() {
       autoIntervalRef.current = null;
     }
 
-    // Устанавливаем новый таймер
+    // Устанавливаем новый таймер с актуальным интервалом
     autoIntervalRef.current = setInterval(() => {
       if (!isAnsweringRef.current) {
         nextStimulusMutation.mutate({ roomId });
       }
-    }, stimulusInterval);
+    }, stimulusIntervalRef.current);
 
     return () => {
       if (autoIntervalRef.current) {
@@ -180,7 +178,14 @@ export default function RoomPage() {
         answerTimeoutRef.current = null;
       }
     };
-  }, [isGameRunning, roomId, stimulusInterval]);
+  }, [isGameRunning, roomId]);
+
+  // Обновляем интервал без пересоздания таймера
+  useEffect(() => {
+    const newInterval = Math.max(2000 - (speedLevel * 200), 600);
+    stimulusIntervalRef.current = newInterval;
+    setStimulusInterval(newInterval);
+  }, [speedLevel]);
 
   if (!room) {
     return (
