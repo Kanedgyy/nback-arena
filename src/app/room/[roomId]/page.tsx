@@ -30,15 +30,18 @@ export default function RoomPage() {
   const utils = trpc.useUtils();
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
+  
+  // ВСЕГДА опрашиваем gameState (не зависит от isGameRunning)
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { enabled: isGameRunning, refetchInterval: 500 }
+    { refetchInterval: 1000 }
   );
 
-  // Синхронизация состояния с сервером - ЕДИНСТВЕННЫЙ источник правды
+  // Синхронизация состояния с сервером
   useEffect(() => {
     if (!gameState) return;
     
+    // Обновляем счёт игрока
     if (gameState.players && gameState.players.length > 0) {
       const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
       if (currentPlayer) {
@@ -52,12 +55,10 @@ export default function RoomPage() {
     setCurrentIndex(gameState.currentIndex);
     setCurrentStimulus(gameState.currentStimulus ?? null);
     setSpeedLevel(gameState.speedLevel);
-    setIsGameRunning(gameState.isRunning);
     setTotalStimuli(gameState.totalStimuli || 30);
     
     // Сбрасываем флаг ответа когда приходит новый стимул
     if (gameState.currentIndex !== lastStimulusIndex) {
-      console.log(`[gameState] New stimulus at index ${gameState.currentIndex}`);
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -68,6 +69,13 @@ export default function RoomPage() {
       }
     }
   }, [gameState, room, lastStimulusIndex]);
+      
+  // Синхронизируем isGameRunning с room.isStarted
+  useEffect(() => {
+    if (room) {
+      setIsGameRunning(room.room.isStarted);
+    }
+  }, [room?.room.isStarted]);
       
   // Очистка таймеров при размонтировании
   useEffect(() => {
@@ -211,14 +219,13 @@ export default function RoomPage() {
 
   // Редирект на страницу результатов при окончании игры
   useEffect(() => {
-    if (gameState?.isComplete) {
-      // Небольшая задержка чтобы игрок увидел финальный стимул
+    if (gameState?.isComplete && room?.room.isStarted) {
       const timeout = setTimeout(() => {
         router.push(`/room/${roomId}/results`);
-      }, 1500);
+      }, 1000);
       return () => clearTimeout(timeout);
     }
-  }, [gameState?.isComplete, roomId, router]);
+  }, [gameState?.isComplete, room?.room.isStarted, roomId, router]);
 
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {

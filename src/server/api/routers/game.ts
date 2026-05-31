@@ -299,10 +299,10 @@ export const gameRouter = router({
       try {
         console.log('Rematch in room:', input.roomId);
         
-        // Очищаем состояние игры
+        // Удаляем из кэша
         roomStatesCache.delete(input.roomId);
         
-        // Сбрасываем game_state_json
+        // Сбрасываем game_state_json и isStarted
         await db.update(rooms)
           .set({ gameStateJson: null, isStarted: false })
           .where(eq(rooms.id, input.roomId));

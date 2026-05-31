@@ -27,8 +27,12 @@ export default function ResultsPage() {
   const { data: results, isLoading } = trpc.game.getResults.useQuery({ roomId });
   const { data: room } = trpc.room.get.useQuery({ roomId });
 
+  const utils = trpc.useUtils();
+
   const rematchMutation = trpc.game.rematch.useMutation({
     onSuccess: () => {
+      utils.room.get.invalidate({ roomId });
+      utils.game.getCurrentState.invalidate({ roomId });
       router.push(`/room/${roomId}`);
     },
   });
