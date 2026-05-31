@@ -158,16 +158,12 @@ export default function RoomPage() {
     isProcessingAnswerRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
     
-    // Очищаем все таймеры
+    // Очищаем только answerTimeout (авто-таймер перезапустится сам)
     if (answerTimeoutRef.current) {
       clearTimeout(answerTimeoutRef.current);
       answerTimeoutRef.current = null;
     }
-    if (autoIntervalRef.current) {
-      clearInterval(autoIntervalRef.current);
-      autoIntervalRef.current = null;
-    }
-
+    
     console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${currentIndex}`);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
     
@@ -176,13 +172,12 @@ export default function RoomPage() {
       console.log(`[handleAnswer] Switching to next stimulus`);
       nextStimulusMutation.mutate({ roomId });
       answerTimeoutRef.current = null;
-      isProcessingAnswerRef.current = false;
     }, 1500);
   };
 
-  // Автоматическое переключение стимулов каждые stimulusInterval (если игрок не ответил)
+  // Автоматическое переключение стимулов каждые stimulusInterval
   useEffect(() => {
-    if (!isGameRunning || isAnsweringRef.current) return;
+    if (!isGameRunning) return;
 
     // Очищаем старый таймер если есть
     if (autoIntervalRef.current) {
@@ -190,14 +185,15 @@ export default function RoomPage() {
       autoIntervalRef.current = null;
     }
 
+    // Не запускаем таймер если игрок отвечает
+    if (isAnsweringRef.current) return;
+
     // Устанавливаем новый таймер с актуальным интервалом
     const intervalMs = stimulusIntervalRef.current;
     console.log(`[autoInterval] Starting timer with ${intervalMs}ms interval`);
     autoIntervalRef.current = setInterval(() => {
-      if (!isAnsweringRef.current && !isProcessingAnswerRef.current) {
-        console.log(`[autoInterval] Auto-switching stimulus`);
-        nextStimulusMutation.mutate({ roomId });
-      }
+      console.log(`[autoInterval] Auto-switching stimulus at index ${currentIndex}`);
+      nextStimulusMutation.mutate({ roomId });
     }, intervalMs);
 
     return () => {
@@ -205,12 +201,8 @@ export default function RoomPage() {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
       }
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
-      }
     };
-  }, [isGameRunning, roomId]);
+  }, [isGameRunning, roomId, currentIndex]);
 
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {
