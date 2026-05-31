@@ -214,6 +214,8 @@ export function validateAnswer(
     player.correctAnswers += 1;
   } else {
     player.mistakes += 1;
+    // Штраф за ошибку -10 очков, но не ниже 0
+    player.score = Math.max(0, player.score - 10);
   }
   
   console.log(`[validateAnswer] Stimulus ${stimulusIndex}: position=${currentStimulus.position}, nBack=${nBackStimulus.position}, actualMatch=${actualMatch}, answer=${playerAnswer}, correct=${correct}, score=${player.score}, mistakes=${player.mistakes}, correctAnswers=${player.correctAnswers}`);

@@ -45,14 +45,20 @@ export const gameRouter = router({
         
         if (!existingRoomState) {
           // Создаём новое состояние
-          const playerIds = players.map(p => p.userId);
           const newRoomState = createRoomState(input.roomId, {
             nValue: room[0].nValue,
           });
           
-          playerIds.forEach((playerId) => {
-            addPlayer(newRoomState, playerId, false, 0);
-          });
+          // Добавляем игроков из БД с правильной конфигурацией ботов
+          for (const player of players) {
+            if (player.isBot && player.botDifficulty !== null) {
+              const { getBotAccuracy } = await import('@/server/game/nback-engine');
+              const accuracy = getBotAccuracy(player.botDifficulty);
+              addPlayer(newRoomState, player.userId, true, accuracy);
+            } else {
+              addPlayer(newRoomState, player.userId, false, 0);
+            }
+          }
 
           roomStates.set(input.roomId, newRoomState);
         }
@@ -122,28 +128,9 @@ export const gameRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        let roomState = roomStates.get(input.roomId);
+        const roomState = roomStates.get(input.roomId);
         if (!roomState) {
-          // Инициализируем состояние если его нет
-          const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
-          if (room.length === 0) {
-            throw new Error('Room not found or game not started');
-          }
-          
-          const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
-          const playerIds = players.map(p => p.userId);
-          
-          const newRoomState = createRoomState(input.roomId, {
-            nValue: room[0].nValue,
-          });
-          
-          playerIds.forEach((playerId) => {
-            addPlayer(newRoomState, playerId, false, 0);
-          });
-          
-          roomStates.set(input.roomId, newRoomState);
-          newRoomState.isRunning = true;
-          roomState = newRoomState;
+          throw new Error('Game state not found. Please restart the game.');
         }
 
         // Use provided stimulusIndex or default to currentIndex - 1
@@ -174,33 +161,15 @@ export const gameRouter = router({
     .mutation(async ({ input }) => {
       let roomState = roomStates.get(input.roomId);
       if (!roomState) {
-        // Инициализируем состояние если его нет
-        const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
-        if (room.length === 0) {
-          throw new Error('Room not found or game not started');
-        }
-        
-        const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
-        const playerIds = players.map(p => p.userId);
-        
-        const newRoomState = createRoomState(input.roomId, {
-          nValue: room[0].nValue,
-        });
-        
-        playerIds.forEach((playerId) => {
-          addPlayer(newRoomState, playerId, false, 0);
-        });
-        
-        roomStates.set(input.roomId, newRoomState);
-        newRoomState.isRunning = true;
-        roomState = newRoomState;
+        // Не пересоздаём состояние — оно должно существовать после start
+        throw new Error('Game state not found. Please restart the game.');
       }
+
+      // Боты отвечают на текущий стимул ПЕРЕД переходом к следующему
+      processBotAnswers(roomState);
 
       advanceStimulus(roomState);
       resetPlayerResponses(roomState);
-
-      // Боты отвечают на новый текущий стимул
-      processBotAnswers(roomState);
 
       const currentStimulus = getCurrentStimulus(roomState);
 
