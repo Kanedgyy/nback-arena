@@ -161,11 +161,6 @@ export function validateAnswer(
   const currentIndex = room.currentIndex;
   const nValue = room.nValue;
   
-  // Can only answer if we're past the Nth stimulus
-  if (currentIndex < nValue) {
-    return { correct: true, isNewMistake: false }; // No answer expected yet
-  }
-  
   // Check if player already answered for this stimulus
   if (player.lastResponse !== null) {
     // Already answered, ignore duplicate
@@ -176,8 +171,28 @@ export function validateAnswer(
   const currentIdx = currentIndex - 1;
   const nBackIdx = currentIndex - 1 - nValue;
   
-  if (currentIdx < 0 || nBackIdx < 0 || currentIdx >= room.sequence.length || nBackIdx >= room.sequence.length) {
-    return { correct: true, isNewMistake: false }; // Invalid indices
+  if (currentIdx < 0 || currentIdx >= room.sequence.length) {
+    return { correct: true, isNewMistake: false }; // Invalid index
+  }
+  
+  // Before Nth stimulus, any "match" answer is wrong (false alarm)
+  if (currentIndex < nValue) {
+    player.lastResponse = playerAnswer;
+    if (playerAnswer === false) {
+      // Correctly did not claim match
+      player.score += 10;
+      player.correctAnswers += 1;
+      return { correct: true, isNewMistake: false };
+    } else {
+      // False alarm - claimed match when it's too early
+      player.mistakes += 1;
+      return { correct: false, isNewMistake: true };
+    }
+  }
+  
+  // Normal N-back validation
+  if (nBackIdx < 0 || nBackIdx >= room.sequence.length) {
+    return { correct: true, isNewMistake: false }; // Invalid nBack index
   }
   
   const currentStimulus = room.sequence[currentIdx];
