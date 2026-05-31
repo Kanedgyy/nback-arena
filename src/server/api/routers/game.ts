@@ -143,13 +143,14 @@ export const gameRouter = router({
 
         const result = validateAnswer(roomState, input.playerId, input.answer);
         const speedIncreased = checkSpeedIncrease(roomState);
-        const currentStimulus = getCurrentStimulus(roomState);
+        const currentPlayer = roomState.players.get(input.playerId);
 
         return {
           success: true,
           correct: result.correct,
-          score: roomState.players.get(input.playerId)?.score || 0,
-          mistakes: roomState.players.get(input.playerId)?.mistakes || 0,
+          score: currentPlayer?.score || 0,
+          mistakes: currentPlayer?.mistakes || 0,
+          correctAnswers: currentPlayer?.correctAnswers || 0,
           speedIncreased,
           isComplete: roomState.currentIndex >= roomState.sequence.length,
         };

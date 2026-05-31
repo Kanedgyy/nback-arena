@@ -37,8 +37,17 @@ export default function RoomPage() {
       setCurrentStimulus(gameState.currentStimulus ?? null);
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
+      // Синхронизируем correctAnswers из gameState если есть
+      if (gameState.players && gameState.players.length > 0) {
+        const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
+        if (currentPlayer) {
+          setScore(currentPlayer.score);
+          setMistakes(currentPlayer.mistakes);
+          setCorrectAnswers(currentPlayer.correctAnswers);
+        }
+      }
     }
-  }, [gameState]);
+  }, [gameState, room]);
 
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
@@ -48,13 +57,12 @@ export default function RoomPage() {
 
   const submitAnswerMutation = trpc.game.submitAnswer.useMutation({
     onSuccess: (data) => {
+      // Обновляем все счётчики из ответа сервера
       setScore(data.score);
       setMistakes(data.mistakes);
-      // Счётчики обновляются только если это правильный ответ
-      if (data.correct) {
-        setCorrectAnswers(prev => prev + 1);
-      } else {
-        setMistakes(prev => prev + 1);
+      // correctAnswers берём из сервера, если ответ правильный
+      if (data.correct && data.correctAnswers !== undefined) {
+        setCorrectAnswers(data.correctAnswers);
       }
     },
     onMutate: () => {
@@ -148,7 +156,7 @@ export default function RoomPage() {
               onClick={() => router.push('/')}
               className="w-full mt-3 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-all"
             >
-              ← Вернуться назад
+              ← Вернуться на главную
             </button>
           </div>
         ) : (
@@ -228,6 +236,12 @@ export default function RoomPage() {
                 </div>
               ))}
             </div>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl transition-all"
+            >
+              🏠 Вернуться на главную
+            </button>
           </div>
         )}
       </div>
