@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { db } from '@/server/db';
 import { rooms, roomPlayers } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
+import type { Room, NewRoomPlayer } from '@/server/db/schema';
 
 export const roomRouter = router({
   create: publicProcedure
@@ -18,13 +19,15 @@ export const roomRouter = router({
         // Генерируем UUID для hostId
         const hostId = crypto.randomUUID();
         
-        const newRoom = await db.insert(rooms).values({
+        const newRoomResult = await db.insert(rooms).values({
           name: input.name,
           hostId: hostId,
           nValue: input.nValue,
           maxPlayers: input.maxPlayers,
           isStarted: false,
-        }).returning().then(r => r[0]);
+        }).returning();
+        
+        const newRoom = newRoomResult[0] as Room;
 
         console.log('Room created:', newRoom.id);
 
@@ -36,7 +39,8 @@ export const roomRouter = router({
           score: 0,
           mistakes: 0,
           isReady: false,
-        });
+          isBot: false,
+        } as NewRoomPlayer);
 
         // Инициализируем игровое состояние
         const { createRoomState, addPlayer } = await import('@/server/game/nback-engine');
@@ -64,18 +68,19 @@ export const roomRouter = router({
       try {
         console.log('Joining room:', input.sessionId);
         
-        const room = await db.select().from(rooms).where(eq(rooms.id, input.sessionId)).limit(1);
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.sessionId)).limit(1);
+        const room = roomResult[0] as Room;
         
-        if (room.length === 0) {
+        if (!room) {
           throw new Error('Room not found');
         }
 
-        if (room[0].isStarted) {
+        if (room.isStarted) {
           throw new Error('Game already started');
         }
 
         const currentPlayers = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.sessionId));
-        if (currentPlayers.length >= room[0].maxPlayers) {
+        if (currentPlayers.length >= room.maxPlayers) {
           throw new Error('Room is full');
         }
 
@@ -88,7 +93,8 @@ export const roomRouter = router({
           score: 0,
           mistakes: 0,
           isReady: false,
-        });
+          isBot: false,
+        } as NewRoomPlayer);
 
         // Добавляем игрока в состояние игры
         const { getRoomState } = await import('@/server/api/routers/game');
@@ -98,7 +104,7 @@ export const roomRouter = router({
           addPlayer(roomState, playerUserId, false, 0);
         }
 
-        return { id: room[0].id, name: room[0].name };
+        return { id: room.id, name: room.name };
       } catch (error) {
         console.error('Join room error:', error);
         throw new Error(error instanceof Error ? error.message : 'Failed to join room');
@@ -110,16 +116,17 @@ export const roomRouter = router({
       roomId: z.string(),
     }))
     .query(async ({ input }) => {
-      const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        const room = roomResult[0] as Room;
       
-      if (room.length === 0) {
+      if (!room) {
         throw new Error('Room not found');
       }
 
       const players = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
 
       return {
-        room: room[0],
+        room,
         players,
       };
     }),
@@ -133,17 +140,18 @@ export const roomRouter = router({
       try {
         console.log('Adding bot to room:', input.roomId, 'difficulty:', input.difficulty);
         
-        const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
-        if (room.length === 0) {
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        const room = roomResult[0] as typeof rooms.$inferSelect;
+        if (!room) {
           throw new Error('Room not found');
         }
 
-        if (room[0].isStarted) {
+        if (room.isStarted) {
           throw new Error('Game already started');
         }
 
         const currentPlayers = await db.select().from(roomPlayers).where(eq(roomPlayers.roomId, input.roomId));
-        if (currentPlayers.length >= room[0].maxPlayers) {
+        if (currentPlayers.length >= room.maxPlayers) {
           throw new Error('Room is full');
         }
 
@@ -162,7 +170,7 @@ export const roomRouter = router({
           isReady: true,
           isBot: true,
           botDifficulty: input.difficulty,
-        });
+        } as NewRoomPlayer);
 
         // Добавляем бота в состояние игры
         const { getRoomState } = await import('@/server/api/routers/game');
@@ -193,30 +201,35 @@ export const roomRouter = router({
       try {
         console.log('Removing bot from room:', input.roomId, 'botId:', input.botId);
         
-        const room = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
-        if (room.length === 0) {
+        const roomResult = await db.select().from(rooms).where(eq(rooms.id, input.roomId)).limit(1);
+        const room = roomResult[0] as Room;
+        if (!room) {
           throw new Error('Room not found');
         }
 
-        if (room[0].isStarted) {
+        if (room.isStarted) {
           throw new Error('Game already started');
         }
 
         // Проверяем что это бот
-        const bot = await db.select().from(roomPlayers).where(
-          eq(roomPlayers.roomId, input.roomId) && 
-          eq(roomPlayers.userId, input.botId) &&
-          eq(roomPlayers.isBot, true)
+        const botResult = await db.select().from(roomPlayers).where(
+          and(
+            eq(roomPlayers.roomId, input.roomId), 
+            eq(roomPlayers.userId, input.botId),
+            eq(roomPlayers.isBot, true)
+          )
         ).limit(1);
 
-        if (bot.length === 0) {
+        if (botResult.length === 0) {
           throw new Error('Bot not found');
         }
 
         // Удаляем из БД
         await db.delete(roomPlayers).where(
-          eq(roomPlayers.roomId, input.roomId) && 
-          eq(roomPlayers.userId, input.botId)
+          and(
+            eq(roomPlayers.roomId, input.roomId), 
+            eq(roomPlayers.userId, input.botId)
+          )
         );
 
         // Удаляем из состояния игры

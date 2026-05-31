@@ -2,11 +2,13 @@ import { initTRPC, TRPCError } from '@trpc/server';
 
 interface CreateContextOptions {
   userId?: string;
+  session?: Map<string, { userId: string }>;
 }
 
 export async function createContext(_opts: CreateContextOptions) {
   return {
     userId: _opts.userId,
+    session: _opts.session || new Map(),
   };
 }
 

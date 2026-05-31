@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { db } from '@/server/db';
-import { users } from '@/server/db/schema';
+import { users, sessions } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
+import type { User } from '@/server/db/schema';
 
 export const authRouter = router({
   signUp: publicProcedure
@@ -20,13 +21,18 @@ export const authRouter = router({
           throw new Error('User with this email already exists');
         }
 
-        const newUser = await db.insert(users).values({
+        const hashedPassword = await hashPassword(input.password);
+
+        const newUserResult = await db.insert(users).values({
           email: input.email,
           name: input.name,
+          password: hashedPassword,
         }).returning();
 
-        console.log('User created:', newUser[0].id);
-        return { user: newUser[0] };
+        const newUser = newUserResult[0] as User;
+
+        console.log('User created:', newUser.id);
+        return { user: newUser };
       } catch (error) {
         console.error('Sign up error:', error);
         throw new Error(error instanceof Error ? error.message : 'Sign up failed');
@@ -38,30 +44,60 @@ export const authRouter = router({
       email: z.string(),
       password: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
-        console.log('Sign in attempt:', input.email);
+        const { email, password } = input;
         
-        // Проверяем сначала по email, если не найдено - по имени
-        let user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        // Проверяем сначала по email
+        let user = await db.select().from(users).where(eq(users.email, email)).limit(1);
         
-        if (user.length === 0 && input.email.includes('@')) {
-          // Если это email и не нашли - пробуем как имя
-          user = await db.select().from(users).where(eq(users.name, input.email)).limit(1);
+        // Если не нашли по email и это похоже на email - пробуем по имени
+        if (user.length === 0 && email.includes('@')) {
+          user = await db.select().from(users).where(eq(users.name, email)).limit(1);
         } else if (user.length === 0) {
           // Если не email - пробуем как имя
-          user = await db.select().from(users).where(eq(users.name, input.email)).limit(1);
+          user = await db.select().from(users).where(eq(users.name, email)).limit(1);
         }
 
         if (user.length === 0) {
-          throw new Error('Invalid email, name or password');
+          throw new Error('User not found');
         }
 
-        console.log('User found:', user[0].id);
-        return { user: user[0] };
+        const dbUser = user[0] as User;
+        
+        // Проверяем пароль
+        const storedHash = dbUser.password;
+        if (!storedHash) {
+          throw new Error('Invalid password');
+        }
+        
+        const isValid = await compare(password, storedHash);
+        if (!isValid) {
+          throw new Error('Invalid password');
+        }
+        
+        // Генерируем session token
+        const token = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 дней
+        
+        await db.insert(sessions).values({
+          id: token,
+          userId: dbUser.id,
+          expiresAt,
+        });
+        
+        ctx.session.set(token, { userId: dbUser.id });
+        
+        return { 
+          user: { 
+            id: dbUser.id, 
+            name: dbUser.name, 
+            email: dbUser.email 
+          } 
+        };
       } catch (error) {
         console.error('Sign in error:', error);
-        throw new Error(error instanceof Error ? error.message : 'Sign in failed');
+        throw new Error(error instanceof Error ? error.message : 'Failed to sign in');
       }
     }),
 
@@ -77,4 +113,9 @@ async function hashPassword(password: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function compare(password: string, hash: string): Promise<boolean> {
+  const hashed = await hashPassword(password);
+  return hashed === hash;
 }

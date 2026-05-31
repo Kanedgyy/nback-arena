@@ -6,6 +6,7 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   name: varchar('name', { length: 255 }),
+  password: varchar('password', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -48,10 +49,19 @@ export const gameResults = pgTable('game_results', {
   completedAt: timestamp('completed_at').defaultNow().notNull(),
 });
 
+// Sessions table for auth
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   roomPlayers: many(roomPlayers),
   gameResults: many(gameResults),
+  sessions: many(sessions),
 }));
 
 export const roomsRelations = relations(rooms, ({ many }) => ({
@@ -82,20 +92,112 @@ export const gameResultsRelations = relations(gameResults, ({ one }) => ({
   }),
 }));
 
-// Type exports
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type Room = typeof rooms.$inferSelect;
-export type NewRoom = typeof rooms.$inferInsert;
-export type RoomPlayer = typeof roomPlayers.$inferSelect;
-export type NewRoomPlayer = typeof roomPlayers.$inferInsert;
-export type GameResult = typeof gameResults.$inferSelect;
-export type NewGameResult = typeof gameResults.$inferInsert;
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, {
+    fields: [sessions.userId],
+    references: [users.id],
+  }),
+}));
 
-// Extend RoomPlayer type to include new fields
-declare module 'drizzle-orm' {
-  interface Table<Columns, Extra = {}> {
-    isBot?: boolean;
-    botDifficulty?: number;
-  }
+// Type exports - using explicit interfaces for better TypeScript compatibility
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  password: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export interface NewUser {
+  id?: string;
+  email: string;
+  name?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  hostId: string | null;
+  nValue: number;
+  maxPlayers: number;
+  isStarted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NewRoom {
+  id?: string;
+  name: string;
+  hostId?: string | null;
+  nValue?: number;
+  maxPlayers?: number;
+  isStarted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface RoomPlayer {
+  id: string;
+  roomId: string;
+  userId: string;
+  score: number;
+  mistakes: number;
+  isReady: boolean;
+  joinedAt: Date;
+  isBot: boolean;
+  botDifficulty: number | null;
+}
+
+export interface NewRoomPlayer {
+  id?: string;
+  roomId: string;
+  userId: string;
+  score?: number;
+  mistakes?: number;
+  isReady?: boolean;
+  joinedAt?: Date;
+  isBot?: boolean;
+  botDifficulty?: number | null;
+}
+
+export interface GameResult {
+  id: string;
+  roomId: string;
+  userId: string;
+  score: number;
+  mistakes: number;
+  correctAnswers: number;
+  finalSpeed: number;
+  rank: number | null;
+  completedAt: Date;
+}
+
+export interface NewGameResult {
+  id?: string;
+  roomId: string;
+  userId: string;
+  score: number;
+  mistakes: number;
+  correctAnswers: number;
+  finalSpeed: number;
+  rank?: number | null;
+  completedAt?: Date;
+}
+
+export interface Session {
+  id: string;
+  userId: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface NewSession {
+  id?: string;
+  userId: string;
+  expiresAt: Date;
+  createdAt?: Date;
+}
+
