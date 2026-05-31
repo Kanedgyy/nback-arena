@@ -24,17 +24,24 @@ export default function RoomPage() {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { enabled: isGameRunning, refetchInterval: 1000 }
+    { enabled: isGameRunning, refetchInterval: 500 }
   );
 
-  // Синхронизация состояния с сервером
+  // Синхронизация состояния с сервером - ЕДИНСТВЕННЫЙ источник правды
   useEffect(() => {
-    if (gameState) {
+    if (gameState && gameState.players && gameState.players.length > 0) {
+      const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
+      if (currentPlayer) {
+        setScore(currentPlayer.score);
+        setMistakes(currentPlayer.mistakes);
+        setCorrectAnswers(currentPlayer.correctAnswers);
+      }
+      
+      // Обновляем currentIndex и другие значения
       setCurrentIndex(gameState.currentIndex);
       setCurrentStimulus(gameState.currentStimulus ?? null);
       setSpeedLevel(gameState.speedLevel);
@@ -46,30 +53,30 @@ export default function RoomPage() {
         setHasAnsweredForCurrentStimulus(false);
         setLastStimulusIndex(gameState.currentIndex);
       }
-      
-      // Синхронизируем correctAnswers из gameState только если с последнего ответа прошло достаточно времени
-      const timeSinceLastAnswer = Date.now() - lastUpdateTime;
-      if (timeSinceLastAnswer > 1500 && gameState.players && gameState.players.length > 0) {
-        const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
-        if (currentPlayer) {
-          setCorrectAnswers(currentPlayer.correctAnswers);
-        }
-      }
     }
-  }, [gameState, room, lastStimulusIndex, lastUpdateTime]);
-
+  }, [gameState, room, lastStimulusIndex]);
+      
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
       setHasAnsweredForCurrentStimulus(false);
       setLastStimulusIndex(0);
-      setScore(0);
-      setMistakes(0);
-      setCorrectAnswers(0);
-      setLastUpdateTime(Date.now());
       
       // Сразу переключаем на первый стимул
       nextStimulusMutation.mutate({ roomId });
+    },
+  });
+
+  const submitAnswerMutation = trpc.game.submitAnswer.useMutation();
+
+  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
+    onSuccess: (data) => {
+      // Разблокируем кнопку ПОСЛЕ успешного переключения стимула
+      setHasAnsweredForCurrentStimulus(false);
+      
+      if (data.isComplete) {
+        setIsGameRunning(false);
+      }
     },
   });
 
@@ -82,6 +89,7 @@ export default function RoomPage() {
         setCorrectAnswers(data.correctAnswers);
       }
       setLastUpdateTime(Date.now());
+      
       
       // Переключаем стимул через 1.5 секунды
       setTimeout(() => {
@@ -123,6 +131,11 @@ export default function RoomPage() {
     // Блокируем кнопку СРАЗУ
     setHasAnsweredForCurrentStimulus(true);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
+    
+    // Переключаем стимул через 1.5 секунды
+    setTimeout(() => {
+      nextStimulusMutation.mutate({ roomId });
+    }, 1500);
   };
 
   // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
@@ -135,10 +148,6 @@ export default function RoomPage() {
 
     return () => {
       clearInterval(interval);
-      // Сбрасываем флаг при очистке таймера
-      if (hasAnsweredForCurrentStimulus) {
-        setHasAnsweredForCurrentStimulus(false);
-      }
     };
   }, [isGameRunning, roomId, hasAnsweredForCurrentStimulus]);
 
