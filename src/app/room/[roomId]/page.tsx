@@ -24,11 +24,12 @@ export default function RoomPage() {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { enabled: isGameRunning, refetchInterval: 500 }
+    { enabled: isGameRunning, refetchInterval: 1000 }
   );
 
   // Синхронизация состояния с сервером
@@ -38,6 +39,7 @@ export default function RoomPage() {
       setCurrentStimulus(gameState.currentStimulus ?? null);
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
+      setTotalStimuli(gameState.totalStimuli || 30);
       
       // Сбрасываем флаг ответа когда приходит новый стимул
       if (gameState.currentIndex !== lastStimulusIndex) {
@@ -45,23 +47,26 @@ export default function RoomPage() {
         setLastStimulusIndex(gameState.currentIndex);
       }
       
-      // Синхронизируем correctAnswers из gameState если есть
-      if (gameState.players && gameState.players.length > 0) {
+      // Синхронизируем correctAnswers из gameState только если с последнего ответа прошло достаточно времени
+      const timeSinceLastAnswer = Date.now() - lastUpdateTime;
+      if (timeSinceLastAnswer > 1500 && gameState.players && gameState.players.length > 0) {
         const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
         if (currentPlayer) {
-          setScore(currentPlayer.score);
-          setMistakes(currentPlayer.mistakes);
           setCorrectAnswers(currentPlayer.correctAnswers);
         }
       }
     }
-  }, [gameState, room, lastStimulusIndex]);
+  }, [gameState, room, lastStimulusIndex, lastUpdateTime]);
 
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
       setHasAnsweredForCurrentStimulus(false);
       setLastStimulusIndex(0);
+      setScore(0);
+      setMistakes(0);
+      setCorrectAnswers(0);
+      setLastUpdateTime(Date.now());
     },
   });
 
@@ -70,10 +75,10 @@ export default function RoomPage() {
       // Обновляем все счётчики из ответа сервера
       setScore(data.score);
       setMistakes(data.mistakes);
-      // correctAnswers берём из сервера, если ответ правильный
-      if (data.correct && data.correctAnswers !== undefined) {
+      if (data.correctAnswers !== undefined) {
         setCorrectAnswers(data.correctAnswers);
       }
+      setLastUpdateTime(Date.now());
     },
   });
 
