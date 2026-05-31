@@ -18,6 +18,7 @@ export default function RoomPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [totalStimuli, setTotalStimuli] = useState(30);
   const [speedLevel, setSpeedLevel] = useState(0);
+  const [stimulusInterval, setStimulusInterval] = useState(2000);
 
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
@@ -48,6 +49,11 @@ export default function RoomPage() {
       setSpeedLevel(gameState.speedLevel);
       setIsGameRunning(gameState.isRunning);
       setTotalStimuli(gameState.totalStimuli || 30);
+      
+      // Рассчитываем интервал на основе speedLevel
+      // baseInterval = 2000ms, каждый уровень ускоряет на 200ms
+      const newInterval = Math.max(2000 - (gameState.speedLevel * 200), 600);
+      setStimulusInterval(newInterval);
       
       // Сбрасываем флаг ответа когда приходит новый стимул
       if (gameState.currentIndex !== lastStimulusIndex) {
@@ -128,7 +134,7 @@ export default function RoomPage() {
     }, 1500);
   };
 
-  // Автоматическое переключение стимулов каждые 2 секунды (если игрок не ответил)
+  // Автоматическое переключение стимулов каждые stimulusInterval (если игрок не ответил)
   useEffect(() => {
     if (!isGameRunning || isAnsweringRef.current) return;
 
@@ -136,7 +142,7 @@ export default function RoomPage() {
       if (!isAnsweringRef.current) {
         nextStimulusMutation.mutate({ roomId });
       }
-    }, 2000);
+    }, stimulusInterval);
 
     return () => {
       clearInterval(interval);
@@ -145,7 +151,7 @@ export default function RoomPage() {
         answerTimeoutRef.current = null;
       }
     };
-  }, [isGameRunning, roomId]);
+  }, [isGameRunning, roomId, stimulusInterval]);
 
   if (!room) {
     return (
@@ -234,6 +240,7 @@ export default function RoomPage() {
                 speedLevel={speedLevel}
                 currentStimulusIndex={currentIndex}
                 totalStimuli={totalStimuli}
+                stimulusInterval={stimulusInterval}
               />
 
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">

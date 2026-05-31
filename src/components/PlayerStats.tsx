@@ -8,6 +8,7 @@ interface PlayerStatsProps {
   speedLevel: number;
   currentStimulusIndex: number;
   totalStimuli: number;
+  stimulusInterval: number;
 }
 
 export function PlayerStats({
@@ -18,6 +19,7 @@ export function PlayerStats({
   speedLevel,
   currentStimulusIndex,
   totalStimuli,
+  stimulusInterval,
 }: PlayerStatsProps) {
   const progress = (currentStimulusIndex / totalStimuli) * 100;
 
@@ -57,11 +59,16 @@ export function PlayerStats({
         </div>
       </div>
 
-      {speedLevel > 0 && (
-        <div className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-3 py-2 rounded text-sm">
-          ⚡ Speed Level: {speedLevel} (faster!)
-        </div>
-      )}
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Interval: {stimulusInterval}ms
+        </p>
+        {speedLevel > 0 && (
+          <div className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-3 py-2 rounded text-sm">
+            ⚡ Speed Level: {speedLevel}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
