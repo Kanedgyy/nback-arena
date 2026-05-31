@@ -50,7 +50,7 @@ export default function ResultsPage() {
   };
 
   const handleExit = () => {
-    router.push('/');
+    router.push('/dashboard');
   };
 
   return (

@@ -169,6 +169,33 @@ export default function RoomPage() {
   const stimulusIntervalRef = useRef(2000);
   const isProcessingAnswerRef = useRef(false);
 
+  // СБРОС при монтировании — critical для реванша через клиентскую навигацию
+  useEffect(() => {
+    gameCompletedRef.current = false;
+    currentIndexRef.current = 0;
+    lastStimulusIndexRef.current = 0;
+    isAnsweringRef.current = false;
+    isProcessingAnswerRef.current = false;
+    setHasAnsweredForCurrentStimulus(false);
+    setCurrentIndex(0);
+    setScore(0);
+    setMistakes(0);
+    setCorrectAnswers(0);
+    setSpeedLevel(0);
+    setCurrentStimulus(null);
+    stimulusIntervalRef.current = 2000;
+    setStimulusInterval(2000);
+    
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current);
+      autoIntervalRef.current = null;
+    }
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+      answerTimeoutRef.current = null;
+    }
+  }, [roomId]);
+
   const handleAnswer = (answer: boolean) => {
     // Атомарная проверка - только один ответ за раз
     if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current) {
