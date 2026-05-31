@@ -67,12 +67,12 @@ export default function CreateRoomPage() {
               <select
                 value={nValue}
                 onChange={(e) => setNValue(Number(e.target.value))}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pink-400 focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/90 border-2 border-white/20 rounded-lg text-purple-900 font-semibold focus:ring-2 focus:ring-pink-400 focus:border-transparent"
               >
-                <option value={1}>1-Back (Легко)</option>
-                <option value={2}>2-Back (Средне)</option>
-                <option value={3}>3-Back (Сложно)</option>
-                <option value={4}>4-Back (Эксперт)</option>
+                <option value={1} className="bg-white text-purple-900">1-Back (Легко)</option>
+                <option value={2} className="bg-white text-purple-900">2-Back (Средне)</option>
+                <option value={3} className="bg-white text-purple-900">3-Back (Сложно)</option>
+                <option value={4} className="bg-white text-purple-900">4-Back (Эксперт)</option>
               </select>
             </div>
 
@@ -81,13 +81,13 @@ export default function CreateRoomPage() {
               <select
                 value={maxPlayers}
                 onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pink-400 focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/90 border-2 border-white/20 rounded-lg text-purple-900 font-semibold focus:ring-2 focus:ring-pink-400 focus:border-transparent"
               >
-                <option value={2}>2 игрока</option>
-                <option value={3}>3 игрока</option>
-                <option value={4}>4 игрока</option>
-                <option value={5}>5 игроков</option>
-                <option value={6}>6 игроков</option>
+                <option value={2} className="bg-white text-purple-900">2 игрока</option>
+                <option value={3} className="bg-white text-purple-900">3 игрока</option>
+                <option value={4} className="bg-white text-purple-900">4 игрока</option>
+                <option value={5} className="bg-white text-purple-900">5 игроков</option>
+                <option value={6} className="bg-white text-purple-900">6 игроков</option>
               </select>
             </div>
 
