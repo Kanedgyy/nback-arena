@@ -26,35 +26,24 @@ export default function RoomPage() {
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
   const isAnsweringRef = useRef(false);
-  const isProcessingAnswerRef = useRef(false);
-  const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const stimulusIntervalRef = useRef(2000);
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
     { enabled: isGameRunning, refetchInterval: 500 }
   );
-}
 
-// Helper functions for bot display
-function getBotName(botId: string, index: number): string {
-  const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega'];
-  const prefixes = ['Speedy', 'Quick', 'Sharp', 'Brainy', 'Ninja'];
-  const nameIndex = parseInt(botId.split('_')[1]?.slice(0, 1) || '0') % names.length;
-  return `${prefixes[index % prefixes.length]} ${names[nameIndex]}`;
-}
-
-function getBotDifficultyLabel(difficulty: number | null): string {
-  if (difficulty === null) return '';
-  switch (difficulty) {
-    case 1: return '🟢 Легко';
-    case 2: return '🟡 Средне';
-    case 3: return '🔴 Сложно';
-    default: return '';
-  }
-}
+  // Синхронизация состояния с сервером - ЕДИНСТВЕННЫЙ источник правды
+  useEffect(() => {
+    if (!gameState) return;
+    
+    if (gameState.players && gameState.players.length > 0) {
+      const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
+      if (currentPlayer) {
+        setScore(currentPlayer.score);
+        setMistakes(currentPlayer.mistakes);
+        setCorrectAnswers(currentPlayer.correctAnswers);
+      }
     }
       
     // Обновляем currentIndex и другие значения
@@ -117,22 +106,6 @@ function getBotDifficultyLabel(difficulty: number | null): string {
       
       // Сразу переключаем на первый стимул
       nextStimulusMutation.mutate({ roomId });
-    },
-  });
-
-  const addBotMutation = trpc.room.addBot.useMutation({
-    onSuccess: (data) => {
-      console.log('[addBot] Bot added:', data);
-      // Refetch room players
-      trpc.room.get.useQuery({ roomId }).refetch();
-    },
-  });
-
-  const removeBotMutation = trpc.room.removeBot.useMutation({
-    onSuccess: (data) => {
-      console.log('[removeBot] Bot removed:', data);
-      // Refetch room players
-      trpc.room.get.useQuery({ roomId }).refetch();
     },
   });
 
@@ -270,75 +243,13 @@ function getBotDifficultyLabel(difficulty: number | null): string {
               </div>
               <div className="flex justify-between text-white/80">
                 <span>Игроки:</span>
-                <span className="font-semibold">{room.players.length} / {room.room.maxPlayers}</span>
+                <span className="font-semibold">{room.players.length}</span>
               </div>
               <div className="flex justify-between text-white/80">
                 <span>Статус:</span>
                 <span className="font-semibold">
                   {room.room.isStarted ? '🔴 Идёт игра' : '🟢 Ожидание'}
                 </span>
-              </div>
-            </div>
-
-            {/* Управление ботами */}
-            <div className="mb-6">
-              <h3 className="text-white font-semibold mb-3">🤖 Боты</h3>
-              
-              {/* Список ботов */}
-              <div className="space-y-2 mb-4">
-                {room.players.filter(p => p.isBot).map((bot) => (
-                  <div
-                    key={bot.id}
-                    className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">🤖</span>
-                      <div>
-                        <div className="text-white font-medium">
-                          {getBotName(bot.userId, room.players.indexOf(bot))}
-                        </div>
-                        <div className="text-xs text-purple-300">
-                          {getBotDifficultyLabel(bot.botDifficulty)}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeBotMutation.mutate({ roomId, botId: bot.userId })}
-                      disabled={removeBotMutation.isPending}
-                      className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-sm transition-all disabled:opacity-50"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {room.players.filter(p => p.isBot).length === 0 && (
-                  <div className="text-purple-300 text-sm text-center py-4">
-                    Нет ботов в комнате
-                  </div>
-                )}
-              </div>
-
-              {/* Добавление бота */}
-              <div className="flex gap-2">
-                <select
-                  id="botDifficulty"
-                  className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-pink-400"
-                  defaultValue={2}
-                >
-                  <option value={1} className="bg-white text-purple-900">Легко</option>
-                  <option value={2} className="bg-white text-purple-900">Средне</option>
-                  <option value={3} className="bg-white text-purple-900">Сложно</option>
-                </select>
-                <button
-                  onClick={() => {
-                    const difficulty = parseInt((document.getElementById('botDifficulty') as HTMLSelectElement).value);
-                    addBotMutation.mutate({ roomId, difficulty });
-                  }}
-                  disabled={addBotMutation.isPending || room.players.length >= room.room.maxPlayers}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {addBotMutation.isPending ? '...' : '➕ Добавить'}
-                </button>
               </div>
             </div>
 
@@ -397,33 +308,17 @@ function getBotDifficultyLabel(difficulty: number | null): string {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
                 <h3 className="text-lg font-semibold mb-3 text-white">Игроки</h3>
                 <div className="space-y-2">
-                  {room.players.map((player) => (
+                  {room.players.map((player, idx) => (
                     <div
                       key={player.id}
                       className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
                     >
-                      <div className="flex items-center gap-2">
-                        {player.isBot ? (
-                          <>
-                            <span className="text-2xl">🤖</span>
-                            <div>
-                              <div className="text-white font-medium">
-                                {getBotName(player.userId, room.players.indexOf(player))}
-                              </div>
-                              <div className="text-xs text-purple-300">
-                                {getBotDifficultyLabel(player.botDifficulty)}
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-white">
-                            {player.userId === room.players[0]?.userId ? '👑 ' : ''}
-                            {player.userId === room.players[0]?.userId ? 'Вы' : `Игрок`}
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-white">
+                        {idx === 0 && '👑 '}
+                        Игрок {idx + 1}
+                      </span>
                       <span className="text-white/60 text-sm">
-                        {player.isBot ? 'Bot' : `ID: ${player.userId.slice(0, 8)}`}
+                        {idx === 0 ? 'Вы' : `ID: ${player.userId.slice(0, 8)}`}
                       </span>
                     </div>
                   ))}
