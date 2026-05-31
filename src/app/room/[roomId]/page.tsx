@@ -24,7 +24,10 @@ export default function RoomPage() {
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
-  const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
+  
+  // Используем refs для значений, которые не должны вызывать ререндеры
+  const currentIndexRef = useRef(0);
+  const lastStimulusIndexRef = useRef(0);
   const isAnsweringRef = useRef(false);
   const gameCompletedRef = useRef(false);
 
@@ -50,6 +53,12 @@ export default function RoomPage() {
   useEffect(() => {
     if (!gameState) return;
     
+    // ЗАЩИТА: не уменьшаем currentIndex — только монотонный рост
+    if (gameState.currentIndex >= currentIndexRef.current) {
+      setCurrentIndex(gameState.currentIndex);
+      currentIndexRef.current = gameState.currentIndex;
+    }
+    
     // Обновляем счёт игрока
     if (gameState.players && gameState.players.length > 0) {
       const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
@@ -60,29 +69,33 @@ export default function RoomPage() {
       }
     }
       
-    setCurrentIndex(gameState.currentIndex);
     setCurrentStimulus(gameState.currentStimulus ?? null);
     setSpeedLevel(gameState.speedLevel);
     setTotalStimuli(gameState.totalStimuli || 30);
     
     // Сбрасываем флаг ответа когда приходит новый стимул
-    if (gameState.currentIndex !== lastStimulusIndex) {
+    if (gameState.currentIndex !== lastStimulusIndexRef.current) {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
-      setLastStimulusIndex(gameState.currentIndex);
+      lastStimulusIndexRef.current = gameState.currentIndex;
       if (answerTimeoutRef.current) {
         clearTimeout(answerTimeoutRef.current);
         answerTimeoutRef.current = null;
       }
     }
-  }, [gameState, room, lastStimulusIndex]);
-      
+  }, [gameState, room]);
+
   // Редирект на страницу результатов при окончании игры
   useEffect(() => {
     const isComplete = gameState?.isComplete ?? false;
     if (isComplete && !gameCompletedRef.current) {
       gameCompletedRef.current = true;
+      // Очищаем таймеры
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
       const timeout = setTimeout(() => {
         router.push(`/room/${roomId}/results`);
       }, 1000);
@@ -107,10 +120,11 @@ export default function RoomPage() {
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       gameCompletedRef.current = false;
+      currentIndexRef.current = 0;
+      lastStimulusIndexRef.current = 0;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
-      setLastStimulusIndex(0);
       setSpeedLevel(0);
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
@@ -164,7 +178,8 @@ export default function RoomPage() {
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
-    const stimulusIndex = currentIndex;
+    // Используем ref вместо state для атомарности
+    const stimulusIndex = currentIndexRef.current;
     
     // Атомарная блокировка
     isAnsweringRef.current = true;
@@ -185,9 +200,11 @@ export default function RoomPage() {
     }, 1500);
   };
 
-  // Автоматическое переключение стимулов
+  // Автоматическое переключение стимулов — НЕ зависит от currentIndex!
   useEffect(() => {
     if (!isGameRunning) return;
+    // Не запускаем если игра завершена
+    if (gameCompletedRef.current) return;
 
     if (autoIntervalRef.current) {
       clearInterval(autoIntervalRef.current);
@@ -207,7 +224,8 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
     };
-  }, [isGameRunning, roomId, currentIndex]);
+    // ВАЖНО: currentIndex НЕ в зависимостях — иначе таймер пересоздаётся при каждом изменении
+  }, [isGameRunning, roomId]);
 
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {
