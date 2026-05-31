@@ -88,35 +88,52 @@ function AuthPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLoginMode && (
+              <>
+                <div>
+                  <label className="block text-purple-200 mb-2 text-sm font-semibold">
+                    Имя пользователя
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    maxLength={20}
+                    placeholder="Ваше имя"
+                    className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-purple-200 mb-2 text-sm font-semibold">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="email@example.com"
+                    className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
+                  />
+                </div>
+              </>
+            )}
+
+            {isLoginMode && (
               <div>
                 <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                  Имя пользователя
+                  Email или Имя пользователя
                 </label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  maxLength={20}
-                  placeholder="Ваше имя"
+                  placeholder="email@example.com или ваше имя"
                   className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
                 />
               </div>
             )}
-
-            <div>
-              <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                Email или Имя пользователя
-              </label>
-              <input
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="email@example.com или ваше имя"
-                className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
-              />
-            </div>
 
             <div>
               <label className="block text-purple-200 mb-2 text-sm font-semibold">
