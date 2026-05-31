@@ -158,7 +158,7 @@ export const gameRouter = router({
     }))
     .query(async ({ input }) => {
       const roomState = await loadRoomState(input.roomId);
-      if (!roomState || !roomState.isRunning) {
+      if (!roomState) {
         return null;
       }
 
@@ -235,6 +235,11 @@ export const gameRouter = router({
       advanceStimulus(roomState);
       resetPlayerResponses(roomState);
 
+      const isComplete = roomState.currentIndex >= roomState.sequence.length;
+      if (isComplete) {
+        roomState.isRunning = false;
+      }
+
       // Сохраняем после перехода
       await saveRoomState(input.roomId, roomState);
 
@@ -244,7 +249,7 @@ export const gameRouter = router({
         currentIndex: roomState.currentIndex,
         stimulus: currentStimulus ? { position: currentStimulus.position } : undefined,
         speedLevel: roomState.speedLevel,
-        isComplete: roomState.currentIndex >= roomState.sequence.length,
+        isComplete,
       };
     }),
 

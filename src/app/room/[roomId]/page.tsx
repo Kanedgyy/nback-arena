@@ -26,18 +26,27 @@ export default function RoomPage() {
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [lastStimulusIndex, setLastStimulusIndex] = useState(0);
   const isAnsweringRef = useRef(false);
+  const gameCompletedRef = useRef(false);
 
   const utils = trpc.useUtils();
 
   const { data: room } = trpc.room.get.useQuery({ roomId });
   
-  // ВСЕГДА опрашиваем gameState (не зависит от isGameRunning)
+  // ВСЕГДА опрашиваем gameState
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
     { refetchInterval: 1000 }
   );
 
-  // Синхронизация состояния с сервером
+  // Синхронизируем isGameRunning с room.isStarted (единственный источник правды)
+  useEffect(() => {
+    if (room) {
+      setIsGameRunning(room.room.isStarted);
+      setNValue(room.room.nValue);
+    }
+  }, [room?.room.isStarted, room?.room.nValue]);
+
+  // Синхронизация состояния игры с сервером
   useEffect(() => {
     if (!gameState) return;
     
@@ -51,7 +60,6 @@ export default function RoomPage() {
       }
     }
       
-    // Обновляем currentIndex и другие значения
     setCurrentIndex(gameState.currentIndex);
     setCurrentStimulus(gameState.currentStimulus ?? null);
     setSpeedLevel(gameState.speedLevel);
@@ -70,12 +78,17 @@ export default function RoomPage() {
     }
   }, [gameState, room, lastStimulusIndex]);
       
-  // Синхронизируем isGameRunning с room.isStarted
+  // Редирект на страницу результатов при окончании игры
   useEffect(() => {
-    if (room) {
-      setIsGameRunning(room.room.isStarted);
+    const isComplete = gameState?.isComplete ?? false;
+    if (isComplete && !gameCompletedRef.current) {
+      gameCompletedRef.current = true;
+      const timeout = setTimeout(() => {
+        router.push(`/room/${roomId}/results`);
+      }, 1000);
+      return () => clearTimeout(timeout);
     }
-  }, [room?.room.isStarted]);
+  }, [gameState?.isComplete, roomId, router]);
       
   // Очистка таймеров при размонтировании
   useEffect(() => {
@@ -93,8 +106,7 @@ export default function RoomPage() {
       
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
-      console.log('[startGame] Game started');
-      setIsGameRunning(true);
+      gameCompletedRef.current = false;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -123,20 +135,13 @@ export default function RoomPage() {
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      console.log(`[nextStimulus] Success, isComplete=${data.isComplete}`);
-      
       // Сбрасываем ВСЕ флаги ПОСЛЕ успешного переключения стимула
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
-      
-      if (data.isComplete) {
-        setIsGameRunning(false);
-      }
     },
     onError: (error) => {
       console.error(`[nextStimulus] Error:`, error);
-      // При ошибке тоже сбрасываем флаг через небольшую задержку
       setTimeout(() => {
         isAnsweringRef.current = false;
         isProcessingAnswerRef.current = false;
@@ -153,26 +158,19 @@ export default function RoomPage() {
   const handleAnswer = (answer: boolean) => {
     // Атомарная проверка - только один ответ за раз
     if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current) {
-      console.log(`[handleAnswer] Blocked: isAnswering=${isAnsweringRef.current}, isProcessing=${isProcessingAnswerRef.current}`);
       return;
     }
     
     const playerId = room.players[0]?.userId;
-    if (!playerId) {
-      console.log('[handleAnswer] No playerId');
-      return;
-    }
+    if (!playerId) return;
     
-    // Запоминаем индекс стимула В МОМЕНТ нажатия
     const stimulusIndex = currentIndex;
-    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${stimulusIndex}`);
     
     // Атомарная блокировка
     isAnsweringRef.current = true;
     isProcessingAnswerRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
     
-    // Очищаем только answerTimeout (авто-таймер перезапустится сам)
     if (answerTimeoutRef.current) {
       clearTimeout(answerTimeoutRef.current);
       answerTimeoutRef.current = null;
@@ -182,30 +180,24 @@ export default function RoomPage() {
     
     // Переключаем стимул через 1.5 секунды
     answerTimeoutRef.current = setTimeout(() => {
-      console.log(`[handleAnswer] Switching to next stimulus from ${stimulusIndex}`);
       nextStimulusMutation.mutate({ roomId });
       answerTimeoutRef.current = null;
     }, 1500);
   };
 
-  // Автоматическое переключение стимулов каждые stimulusInterval
+  // Автоматическое переключение стимулов
   useEffect(() => {
     if (!isGameRunning) return;
 
-    // Очищаем старый таймер если есть
     if (autoIntervalRef.current) {
       clearInterval(autoIntervalRef.current);
       autoIntervalRef.current = null;
     }
 
-    // Не запускаем таймер если игрок отвечает
     if (isAnsweringRef.current) return;
 
-    // Устанавливаем новый таймер с актуальным интервалом
     const intervalMs = stimulusIntervalRef.current;
-    console.log(`[autoInterval] Starting timer with ${intervalMs}ms interval`);
     autoIntervalRef.current = setInterval(() => {
-      console.log(`[autoInterval] Auto-switching stimulus at index ${currentIndex}`);
       nextStimulusMutation.mutate({ roomId });
     }, intervalMs);
 
@@ -216,16 +208,6 @@ export default function RoomPage() {
       }
     };
   }, [isGameRunning, roomId, currentIndex]);
-
-  // Редирект на страницу результатов при окончании игры
-  useEffect(() => {
-    if (gameState?.isComplete && room?.room.isStarted) {
-      const timeout = setTimeout(() => {
-        router.push(`/room/${roomId}/results`);
-      }, 1000);
-      return () => clearTimeout(timeout);
-    }
-  }, [gameState?.isComplete, room?.room.isStarted, roomId, router]);
 
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {
@@ -448,45 +430,49 @@ export default function RoomPage() {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
                 <h3 className="text-lg font-semibold mb-3 text-white">🏆 Счёт</h3>
                 <div className="space-y-2">
-                  {(gameState?.players || room.players).map((player: any, idx: number) => {
-                    const isBot = player.isBot;
-                    const isYou = !isBot && idx === 0;
-                    const playerScore = player.score ?? 0;
-                    const playerMistakes = player.mistakes ?? 0;
-                    
-                    return (
-                      <div
-                        key={player.userId || player.id}
-                        className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
-                      >
-                        <div className="flex items-center gap-2">
-                          {isBot ? (
-                            <>
-                              <span className="text-2xl">🤖</span>
+                  {!gameState?.players ? (
+                    <div className="text-purple-300 text-sm text-center py-4">Загрузка...</div>
+                  ) : (
+                    gameState.players.map((player: any, idx: number) => {
+                      const isBot = player.isBot;
+                      const isYou = !isBot && idx === 0;
+                      
+                      return (
+                        <div
+                          key={player.userId}
+                          className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                        >
+                          <div className="flex items-center gap-2">
+                            {isBot ? (
+                              <>
+                                <span className="text-2xl">🤖</span>
+                                <div>
+                                  <div className="text-white font-medium">
+                                    {getBotName(player.userId, idx)}
+                                  </div>
+                                  <div className="text-xs text-purple-300">
+                                    {getBotDifficultyLabel(
+                                      room.players.find((p: any) => p.userId === player.userId)?.botDifficulty ?? null
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
                               <div>
                                 <div className="text-white font-medium">
-                                  {getBotName(player.userId, idx)}
-                                </div>
-                                <div className="text-xs text-purple-300">
-                                  {getBotDifficultyLabel(player.botDifficulty)}
+                                  {isYou ? '👑 Вы' : `Игрок ${idx + 1}`}
                                 </div>
                               </div>
-                            </>
-                          ) : (
-                            <div>
-                              <div className="text-white font-medium">
-                                {isYou ? '👑 Вы' : `Игрок ${idx + 1}`}
-                              </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="text-white font-bold">{player.score} очк.</div>
+                            <div className="text-xs text-red-300">{player.mistakes} ошиб.</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-white font-bold">{playerScore} очк.</div>
-                          <div className="text-xs text-red-300">{playerMistakes} ошиб.</div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>

@@ -12,9 +12,9 @@ function getBotName(botId: string, index: number): string {
 function getBotDifficultyLabel(difficulty: number | null): string {
   if (difficulty === null) return '';
   switch (difficulty) {
-    case 1: return '🟢 Легко';
-    case 2: return '🟡 Средне';
-    case 3: return '🔴 Сложно';
+    case 1: return '🟢 Легкий'
+    case 2: return '🟡 Средний'
+    case 3: return '🔴 Сложный'
     default: return '';
   }
 }
