@@ -68,11 +68,16 @@ export default function RoomPage() {
     }
   }, [gameState, room, lastStimulusIndex]);
       
-  // Очистка таймера при размонтировании
+  // Очистка таймеров при размонтировании
   useEffect(() => {
     return () => {
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
       if (answerTimeoutRef.current) {
         clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
       }
     };
   }, []);
@@ -80,8 +85,20 @@ export default function RoomPage() {
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
       setIsGameRunning(true);
+      isAnsweringRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       setLastStimulusIndex(0);
+      setStimulusInterval(2000);
+      
+      // Очищаем все таймеры перед стартом
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
+      }
       
       // Сразу переключаем на первый стимул
       nextStimulusMutation.mutate({ roomId });
@@ -108,6 +125,7 @@ export default function RoomPage() {
   });
 
   const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAnswer = (answer: boolean) => {
     // Атомарная проверка и установка флага
@@ -123,6 +141,7 @@ export default function RoomPage() {
     // Очищаем предыдущий таймер если есть
     if (answerTimeoutRef.current) {
       clearTimeout(answerTimeoutRef.current);
+      answerTimeoutRef.current = null;
     }
     
     submitAnswerMutation.mutate({ roomId, playerId, answer });
@@ -138,14 +157,24 @@ export default function RoomPage() {
   useEffect(() => {
     if (!isGameRunning || isAnsweringRef.current) return;
 
-    const interval = setInterval(() => {
+    // Очищаем старый таймер если есть
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current);
+      autoIntervalRef.current = null;
+    }
+
+    // Устанавливаем новый таймер
+    autoIntervalRef.current = setInterval(() => {
       if (!isAnsweringRef.current) {
         nextStimulusMutation.mutate({ roomId });
       }
     }, stimulusInterval);
 
     return () => {
-      clearInterval(interval);
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
       if (answerTimeoutRef.current) {
         clearTimeout(answerTimeoutRef.current);
         answerTimeoutRef.current = null;
