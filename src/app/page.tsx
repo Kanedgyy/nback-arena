@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/trpc';
 
 function AuthPage() {
@@ -56,100 +56,97 @@ function AuthPage() {
           <p className="text-xl text-purple-200">Multiplayer N-Back Training Game</p>
         </div>
 
-        {/* Форма входа/регистрации */}
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20">
-            {/* Переключатель режимов */}
-            <div className="flex gap-2 mb-6 p-1 bg-white/10 rounded-xl">
-              <button
-                onClick={() => setIsLoginMode(false)}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                  !isLoginMode
-                    ? 'bg-pink-500 text-white'
-                    : 'text-purple-200 hover:bg-white/10'
-                }`}
-              >
-                Регистрация
-              </button>
-              <button
-                onClick={() => setIsLoginMode(true)}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                  isLoginMode
-                    ? 'bg-cyan-500 text-white'
-                    : 'text-purple-200 hover:bg-white/10'
-                }`}
-              >
-                Вход
-              </button>
-            </div>
+          <div className="flex gap-2 mb-6 p-1 bg-white/10 rounded-xl">
+            <button
+              onClick={() => setIsLoginMode(false)}
+              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
+                !isLoginMode
+                  ? 'bg-pink-500 text-white'
+                  : 'text-purple-200 hover:bg-white/10'
+              }`}
+            >
+              Регистрация
+            </button>
+            <button
+              onClick={() => setIsLoginMode(true)}
+              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
+                isLoginMode
+                  ? 'bg-cyan-500 text-white'
+                  : 'text-purple-200 hover:bg-white/10'
+              }`}
+            >
+              Вход
+            </button>
+          </div>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-red-100">
-                {error}
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-red-100">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLoginMode && (
+              <div>
+                <label className="block text-purple-200 mb-2 text-sm font-semibold">
+                  Имя пользователя
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  maxLength={20}
+                  placeholder="Ваше имя"
+                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
+                />
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLoginMode && (
-                <div>
-                  <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                    Имя пользователя
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    maxLength={20}
-                    placeholder="Ваше имя"
-                    className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
-                  />
-                </div>
-              )}
+            <div>
+              <label className="block text-purple-200 mb-2 text-sm font-semibold">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="example@email.com"
+                className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
+              />
+            </div>
 
-              <div>
-                <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="example@email.com"
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
-                />
-              </div>
+            <div>
+              <label className="block text-purple-200 mb-2 text-sm font-semibold">
+                Пароль
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder={isLoginMode ? 'Введите пароль' : 'Минимум 6 символов'}
+                className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
+              />
+            </div>
 
-              <div>
-                <label className="block text-purple-200 mb-2 text-sm font-semibold">
-                  Пароль
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  placeholder={isLoginMode ? 'Введите пароль' : 'Минимум 6 символов'}
-                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:border-pink-400 focus:outline-none transition-all"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoginMode ? signInMutation.isPending : signUpMutation.isPending}
-                className={`w-full py-3 px-4 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isLoginMode
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-                    : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700'
-                } text-white shadow-lg`}
-              >
-                {isLoginMode
-                  ? (signInMutation.isPending ? 'Вход...' : '🔐 Войти')
-                  : (signUpMutation.isPending ? 'Регистрация...' : '✨ Создать аккаунт')}
-              </button>
-            </form>
-          </div>
+            <button
+              type="submit"
+              disabled={isLoginMode ? signInMutation.isPending : signUpMutation.isPending}
+              className={`w-full py-3 px-4 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                isLoginMode
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
+                  : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700'
+              } text-white shadow-lg`}
+            >
+              {isLoginMode
+                ? (signInMutation.isPending ? 'Вход...' : '🔐 Войти')
+                : (signUpMutation.isPending ? 'Регистрация...' : '✨ Создать аккаунт')}
+            </button>
+          </form>
         </div>
       </div>
     </div>
