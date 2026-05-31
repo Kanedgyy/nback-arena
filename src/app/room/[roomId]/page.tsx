@@ -33,8 +33,11 @@ export default function RoomPage() {
 
   const utils = trpc.useUtils();
 
-  const { data: room } = trpc.room.get.useQuery({ roomId });
-  
+  const { data: room } = trpc.room.get.useQuery(
+    { roomId },
+    { refetchInterval: 2000 } // Опрашиваем каждые 2 секунды
+  );
+
   // ВСЕГДА опрашиваем gameState
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
@@ -119,6 +122,9 @@ export default function RoomPage() {
       
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
+      // Мгновенно переключаемся в игровой режим
+      setIsGameRunning(true);
+      
       gameCompletedRef.current = false;
       currentIndexRef.current = 0;
       lastStimulusIndexRef.current = 0;
@@ -171,6 +177,9 @@ export default function RoomPage() {
 
   // СБРОС при монтировании — critical для реванша через клиентскую навигацию
   useEffect(() => {
+    // Инвалидируем кэш комнаты чтобы получить актуальный isStarted
+    utils.room.get.invalidate({ roomId });
+    
     gameCompletedRef.current = false;
     currentIndexRef.current = 0;
     lastStimulusIndexRef.current = 0;
