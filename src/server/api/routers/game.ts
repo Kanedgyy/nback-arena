@@ -114,6 +114,7 @@ export const gameRouter = router({
       roomId: z.string(),
       playerId: z.string(),
       answer: z.boolean(),
+      stimulusIndex: z.number().optional(), // Optional: if not provided, uses current index
     }))
     .mutation(async ({ input }) => {
       try {
@@ -141,7 +142,9 @@ export const gameRouter = router({
           roomState = newRoomState;
         }
 
-        const result = validateAnswer(roomState, input.playerId, input.answer);
+        // Use provided stimulusIndex or default to currentIndex - 1
+        const stimulusIndex = input.stimulusIndex ?? roomState.currentIndex - 1;
+        const result = validateAnswer(roomState, input.playerId, input.answer, stimulusIndex);
         const speedIncreased = checkSpeedIncrease(roomState);
         const currentPlayer = roomState.players.get(input.playerId);
 

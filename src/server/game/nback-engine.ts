@@ -146,64 +146,62 @@ export function removePlayer(room: RoomState, userId: string): void {
 
 /**
  * Validates a player's answer
+ * @param stimulusIndex - Index of the stimulus being answered (0-based)
  * @returns { correct: boolean; isNewMistake: boolean }
  */
 export function validateAnswer(
   room: RoomState,
   userId: string,
-  playerAnswer: boolean // true = player claims match, false = player claims no match
+  playerAnswer: boolean, // true = player claims match, false = player claims no match
+  stimulusIndex: number = room.currentIndex - 1 // Default to current stimulus if not provided
 ): { correct: boolean; isNewMistake: boolean } {
   const player = room.players.get(userId);
   if (!player) {
     throw new Error(`Player ${userId} not found in room ${room.roomId}`);
   }
   
-  // currentIndex указывает на СЛЕДУЮЩИЙ стимул, поэтому текущий = currentIndex - 1
-  const currentIndex = room.currentIndex;
   const nValue = room.nValue;
+  
+  console.log(`[validateAnswer] Player ${userId}, stimulusIndex=${stimulusIndex}, nValue=${nValue}, answer=${playerAnswer}`);
   
   // Check if player already answered for this stimulus
   if (player.lastResponse !== null) {
-    // Already answered, ignore duplicate
+    console.log(`[validateAnswer] Already answered, ignoring`);
     return { correct: true, isNewMistake: false };
   }
   
   // Ensure we have a valid current stimulus to validate
-  const currentIdx = currentIndex - 1;
-  
-  // No stimulus yet (game hasn't started or just started)
-  if (currentIdx < 0) {
-    return { correct: true, isNewMistake: false };
-  }
-  
-  // Check if currentIdx is within bounds
-  if (currentIdx >= room.sequence.length) {
+  if (stimulusIndex < 0 || stimulusIndex >= room.sequence.length) {
+    console.log(`[validateAnswer] Invalid stimulusIndex: ${stimulusIndex}`);
     return { correct: true, isNewMistake: false };
   }
   
   // Before Nth stimulus (index 0 to nValue-1), any "match" answer is wrong (false alarm)
-  if (currentIdx < nValue) {
+  if (stimulusIndex < nValue) {
     player.lastResponse = playerAnswer;
     if (playerAnswer === false) {
       // Correctly did not claim match
       player.score += 10;
       player.correctAnswers += 1;
+      console.log(`[validateAnswer] Early stimulus: correct=${true}, score=${player.score}, correctAnswers=${player.correctAnswers}`);
       return { correct: true, isNewMistake: false };
     } else {
       // False alarm - claimed match when it's too early
       player.mistakes += 1;
+      console.log(`[validateAnswer] Early stimulus: mistake=${player.mistakes}`);
       return { correct: false, isNewMistake: true };
     }
   }
   
   // Normal N-back validation: compare current stimulus with n steps back
-  const nBackIdx = currentIdx - nValue;
+  const nBackIdx = stimulusIndex - nValue;
   
   if (nBackIdx < 0 || nBackIdx >= room.sequence.length) {
+    console.log(`[validateAnswer] Invalid nBackIdx: ${nBackIdx}`);
     return { correct: true, isNewMistake: false };
   }
   
-  const currentStimulus = room.sequence[currentIdx];
+  const currentStimulus = room.sequence[stimulusIndex];
   const nBackStimulus = room.sequence[nBackIdx];
   
   const actualMatch = currentStimulus.position === nBackStimulus.position;
@@ -218,7 +216,7 @@ export function validateAnswer(
     player.mistakes += 1;
   }
   
-  console.log(`[validateAnswer] Player ${userId}: answer=${playerAnswer}, actualMatch=${actualMatch}, correct=${correct}, score=${player.score}, mistakes=${player.mistakes}, correctAnswers=${player.correctAnswers}`);
+  console.log(`[validateAnswer] Stimulus ${stimulusIndex}: position=${currentStimulus.position}, nBack=${nBackStimulus.position}, actualMatch=${actualMatch}, answer=${playerAnswer}, correct=${correct}, score=${player.score}, mistakes=${player.mistakes}, correctAnswers=${player.correctAnswers}`);
   
   return { correct, isNewMistake: !correct };
 }

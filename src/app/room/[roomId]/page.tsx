@@ -153,6 +153,10 @@ export default function RoomPage() {
       return;
     }
     
+    // Запоминаем индекс стимула В МОМЕНТ нажатия
+    const stimulusIndex = currentIndex;
+    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${stimulusIndex}`);
+    
     // Атомарная блокировка
     isAnsweringRef.current = true;
     isProcessingAnswerRef.current = true;
@@ -164,12 +168,11 @@ export default function RoomPage() {
       answerTimeoutRef.current = null;
     }
     
-    console.log(`[handleAnswer] Submitting answer: ${answer} for stimulus ${currentIndex}`);
-    submitAnswerMutation.mutate({ roomId, playerId, answer });
+    submitAnswerMutation.mutate({ roomId, playerId, answer, stimulusIndex });
     
     // Переключаем стимул через 1.5 секунды
     answerTimeoutRef.current = setTimeout(() => {
-      console.log(`[handleAnswer] Switching to next stimulus`);
+      console.log(`[handleAnswer] Switching to next stimulus from ${stimulusIndex}`);
       nextStimulusMutation.mutate({ roomId });
       answerTimeoutRef.current = null;
     }, 1500);
