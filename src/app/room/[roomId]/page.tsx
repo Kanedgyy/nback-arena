@@ -98,16 +98,19 @@ export default function RoomPage() {
 
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
-      // Разблокируем кнопку после переключения стимула
+      // Разблокируем кнопку ПОСЛЕ успешного переключения стимула
       setHasAnsweredForCurrentStimulus(false);
       
       if (data.isComplete) {
         setIsGameRunning(false);
       }
     },
-    onError: () => {
-      // Даже при ошибке разблокируем кнопку
-      setHasAnsweredForCurrentStimulus(false);
+    onError: (error) => {
+      console.error('Next stimulus error:', error);
+      // Даже при ошибке разблокируем кнопку через небольшую задержку
+      setTimeout(() => {
+        setHasAnsweredForCurrentStimulus(false);
+      }, 500);
     },
   });
 
@@ -117,7 +120,7 @@ export default function RoomPage() {
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
-    // Блокируем кнопку
+    // Блокируем кнопку СРАЗУ
     setHasAnsweredForCurrentStimulus(true);
     submitAnswerMutation.mutate({ roomId, playerId, answer });
   };
@@ -130,7 +133,13 @@ export default function RoomPage() {
       nextStimulusMutation.mutate({ roomId });
     }, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Сбрасываем флаг при очистке таймера
+      if (hasAnsweredForCurrentStimulus) {
+        setHasAnsweredForCurrentStimulus(false);
+      }
+    };
   }, [isGameRunning, roomId, hasAnsweredForCurrentStimulus]);
 
   if (!room) {
