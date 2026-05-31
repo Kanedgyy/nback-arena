@@ -172,8 +172,16 @@ export function validateAnswer(
     return { correct: true, isNewMistake: false };
   }
   
-  const currentStimulus = room.sequence[currentIndex - 1];
-  const nBackStimulus = room.sequence[currentIndex - 1 - nValue];
+  // Ensure indices are valid
+  const currentIdx = currentIndex - 1;
+  const nBackIdx = currentIndex - 1 - nValue;
+  
+  if (currentIdx < 0 || nBackIdx < 0 || currentIdx >= room.sequence.length || nBackIdx >= room.sequence.length) {
+    return { correct: true, isNewMistake: false }; // Invalid indices
+  }
+  
+  const currentStimulus = room.sequence[currentIdx];
+  const nBackStimulus = room.sequence[nBackIdx];
   
   const actualMatch = currentStimulus.position === nBackStimulus.position;
   const correct = playerAnswer === actualMatch;
