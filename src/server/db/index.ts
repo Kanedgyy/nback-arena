@@ -1,9 +1,47 @@
+import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle, NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
+
+// Включаем кэш соединений для стабильности
+neonConfig.fetchConnectionCache = true;
 
 type DbClient = NeonHttpDatabase<typeof schema>;
 
 let _db: DbClient | null = null;
+
+function isRetryableError(error: any): boolean {
+  if (!error) return false;
+  const msg = String(error.message || error);
+  return (
+    msg.includes('Control plane request failed') ||
+    msg.includes('neon:retryable') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('504') ||
+    msg.includes('500') ||
+    (error.cause && isRetryableError(error.cause))
+  );
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 4,
+  delay = 500
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0 && isRetryableError(error)) {
+      console.warn(`[DB retry] waiting ${delay}ms, ${retries} attempts left. Error: ${(error as any)?.message || error}`);
+      await new Promise((r) => setTimeout(r, delay));
+      return withRetry(fn, retries - 1, delay * 1.5);
+    }
+    throw error;
+  }
+}
 
 export function getDb(): DbClient {
   if (!_db) {
@@ -15,9 +53,16 @@ export function getDb(): DbClient {
       throw new Error('DATABASE_URL environment variable is not set');
     }
     
-    const { neon } = require('@neondatabase/serverless');
     const sql = neon(databaseUrl);
-    _db = drizzle(sql, { schema });
+
+    // Оборачиваем sql в retry-прокси
+    const sqlWithRetry = new Proxy(sql, {
+      apply(target, thisArg, args) {
+        return withRetry(() => Reflect.apply(target, thisArg, args));
+      },
+    });
+
+    _db = drizzle(sqlWithRetry as any, { schema });
     console.log('DB initialized successfully');
   }
   return _db;
