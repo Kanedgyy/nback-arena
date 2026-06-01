@@ -38,10 +38,10 @@ export default function RoomPage() {
     { refetchInterval: 2000 } // Опрашиваем каждые 2 секунды
   );
 
-  // ВСЕГДА опрашиваем gameState
+  // ВСЕГДА опрашиваем gameState — staleTime:0 чтобы не использовать кэш
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { refetchInterval: 1000 }
+    { refetchInterval: 1000, staleTime: 0 }
   );
 
   // Синхронизируем isGameRunning с room.isStarted (единственный источник правды)
@@ -53,27 +53,23 @@ export default function RoomPage() {
   }, [room?.room.isStarted, room?.room.nValue]);
 
   // Синхронизация состояния игры с сервером
+  // ИСПОЛЬЗУЕМ gameState ТОЛЬКО для: currentStimulus, isComplete, players (боты)
+  // НЕ обновляем отсюда: score, mistakes, correctAnswers — они из submitAnswer.onSuccess
   useEffect(() => {
     if (!gameState) return;
     
-    // ЗАЩИТА: не уменьшаем currentIndex — только монотонный рост
+    // currentIndex — только монотонный рост
     if (gameState.currentIndex >= currentIndexRef.current) {
       setCurrentIndex(gameState.currentIndex);
       currentIndexRef.current = gameState.currentIndex;
     }
     
-    // Обновляем счёт игрока
-    if (gameState.players && gameState.players.length > 0) {
-      const currentPlayer = gameState.players.find(p => p.userId === room?.players[0]?.userId);
-      if (currentPlayer) {
-        setScore(currentPlayer.score);
-        setMistakes(currentPlayer.mistakes);
-        setCorrectAnswers(currentPlayer.correctAnswers);
-      }
+    // speedLevel — только монотонный рост (не уменьшаем)
+    if (gameState.speedLevel >= speedLevel) {
+      setSpeedLevel(gameState.speedLevel);
     }
       
     setCurrentStimulus(gameState.currentStimulus ?? null);
-    setSpeedLevel(gameState.speedLevel);
     setTotalStimuli(gameState.totalStimuli || 30);
     
     // Сбрасываем флаг ответа когда приходит новый стимул
@@ -82,12 +78,8 @@ export default function RoomPage() {
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       lastStimulusIndexRef.current = gameState.currentIndex;
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
-      }
     }
-  }, [gameState, room]);
+  }, [gameState, speedLevel]);
 
   // Редирект при окончании игры
   useEffect(() => {
@@ -99,7 +91,6 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
       
-      // Для турниров — на страницу раундов, для обычных — на результаты
       const isTournament = room?.room.isTournament ?? false;
       const target = isTournament 
         ? `/room/${roomId}/tournament` 
@@ -119,16 +110,11 @@ export default function RoomPage() {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
       }
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
-      }
     };
   }, []);
       
   const startGameMutation = trpc.game.start.useMutation({
     onSuccess: () => {
-      // Мгновенно переключаемся в игровой режим
       setIsGameRunning(true);
       
       gameCompletedRef.current = false;
@@ -137,6 +123,9 @@ export default function RoomPage() {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
+      setScore(0);
+      setMistakes(0);
+      setCorrectAnswers(0);
       setSpeedLevel(0);
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
@@ -145,10 +134,6 @@ export default function RoomPage() {
       if (autoIntervalRef.current) {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
-      }
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
       }
       
       nextStimulusMutation.mutate({ roomId });
@@ -165,6 +150,9 @@ export default function RoomPage() {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
+      setScore(0);
+      setMistakes(0);
+      setCorrectAnswers(0);
       setSpeedLevel(0);
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
@@ -174,42 +162,73 @@ export default function RoomPage() {
         clearInterval(autoIntervalRef.current);
         autoIntervalRef.current = null;
       }
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
-      }
       
       nextStimulusMutation.mutate({ roomId });
     },
   });
 
-  const submitAnswerMutation = trpc.game.submitAnswer.useMutation();
-
-  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
+  // submitAnswer — обновляем score напрямую из ответа сервера
+  const submitAnswerMutation = trpc.game.submitAnswer.useMutation({
     onSuccess: (data) => {
-      // Сбрасываем ВСЕ флаги ПОСЛЕ успешного переключения стимула
+      setScore(data.score);
+      setMistakes(data.mistakes);
+      setCorrectAnswers(data.correctAnswers);
+      // Сразу переключаем стимул после ответа
+      nextStimulusMutation.mutate({ roomId });
+    },
+    onError: () => {
+      // При ошибке сбрасываем флаги
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
     },
-    onError: (error) => {
-      console.error(`[nextStimulus] Error:`, error);
-      setTimeout(() => {
-        isAnsweringRef.current = false;
-        isProcessingAnswerRef.current = false;
-        setHasAnsweredForCurrentStimulus(false);
-      }, 500);
+  });
+
+  // nextStimulus — обновляем currentIndex и speedLevel напрямую из ответа
+  const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
+    onSuccess: (data) => {
+      isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
+      setHasAnsweredForCurrentStimulus(false);
+      
+      // Обновляем напрямую из ответа сервера
+      setCurrentIndex(data.currentIndex);
+      currentIndexRef.current = data.currentIndex;
+      setSpeedLevel(data.speedLevel);
+      if (data.stimulus) {
+        setCurrentStimulus(data.stimulus.position);
+      }
+      
+      if (data.isComplete) {
+        setIsGameRunning(false);
+      }
+      
+      // Перезапускаем автотаймер
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+      }
+      if (!data.isComplete && isGameRunning) {
+        const intervalMs = stimulusIntervalRef.current;
+        autoIntervalRef.current = setInterval(() => {
+          if (!isAnsweringRef.current) {
+            nextStimulusMutation.mutate({ roomId });
+          }
+        }, intervalMs);
+      }
+    },
+    onError: () => {
+      isAnsweringRef.current = false;
+      isProcessingAnswerRef.current = false;
+      setHasAnsweredForCurrentStimulus(false);
     },
   });
 
-  const answerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stimulusIntervalRef = useRef(2000);
   const isProcessingAnswerRef = useRef(false);
 
-  // СБРОС при монтировании — critical для реванша через клиентскую навигацию
+  // СБРОС при монтировании
   useEffect(() => {
-    // Инвалидируем кэш комнаты чтобы получить актуальный isStarted
     utils.room.get.invalidate({ roomId });
     
     gameCompletedRef.current = false;
@@ -231,14 +250,9 @@ export default function RoomPage() {
       clearInterval(autoIntervalRef.current);
       autoIntervalRef.current = null;
     }
-    if (answerTimeoutRef.current) {
-      clearTimeout(answerTimeoutRef.current);
-      answerTimeoutRef.current = null;
-    }
   }, [roomId]);
 
   const handleAnswer = (answer: boolean) => {
-    // Атомарная проверка - только один ответ за раз
     if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current) {
       return;
     }
@@ -246,44 +260,36 @@ export default function RoomPage() {
     const playerId = room.players[0]?.userId;
     if (!playerId) return;
     
-    // Используем ref вместо state для атомарности
     const stimulusIndex = currentIndexRef.current;
     
-    // Атомарная блокировка
     isAnsweringRef.current = true;
     isProcessingAnswerRef.current = true;
     setHasAnsweredForCurrentStimulus(true);
     
-    if (answerTimeoutRef.current) {
-      clearTimeout(answerTimeoutRef.current);
-      answerTimeoutRef.current = null;
+    // Очищаем автотаймер — переключение будет через submitAnswer.onSuccess
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current);
+      autoIntervalRef.current = null;
     }
     
     submitAnswerMutation.mutate({ roomId, playerId, answer, stimulusIndex });
-    
-    // Переключаем стимул через 1.5 секунды
-    answerTimeoutRef.current = setTimeout(() => {
-      nextStimulusMutation.mutate({ roomId });
-      answerTimeoutRef.current = null;
-    }, 1500);
   };
 
-  // Автоматическое переключение стимулов — НЕ зависит от currentIndex!
+  // Автотаймер — только если игрок НЕ отвечает
   useEffect(() => {
-    if (!isGameRunning) return;
-    // Не запускаем если игра завершена
-    if (gameCompletedRef.current) return;
+    if (!isGameRunning || gameCompletedRef.current) return;
+    if (isAnsweringRef.current) return;
 
     if (autoIntervalRef.current) {
       clearInterval(autoIntervalRef.current);
       autoIntervalRef.current = null;
     }
 
-    if (isAnsweringRef.current) return;
-
     const intervalMs = stimulusIntervalRef.current;
     autoIntervalRef.current = setInterval(() => {
-      nextStimulusMutation.mutate({ roomId });
+      if (!isAnsweringRef.current) {
+        nextStimulusMutation.mutate({ roomId });
+      }
     }, intervalMs);
 
     return () => {
@@ -292,7 +298,6 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
     };
-    // ВАЖНО: currentIndex НЕ в зависимостях — иначе таймер пересоздаётся при каждом изменении
   }, [isGameRunning, roomId]);
 
   // Обновляем интервал без пересоздания таймера
