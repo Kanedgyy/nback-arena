@@ -27,7 +27,6 @@ export default function RoomPage() {
   const [allPlayers, setAllPlayers] = useState<any[]>([]); // Локальное хранение всех игроков
   
   const currentIndexRef = useRef(0);
-  const lastStimulusIndexRef = useRef(0);
   const isAnsweringRef = useRef(false);
   const gameCompletedRef = useRef(false);
 
@@ -38,13 +37,13 @@ export default function RoomPage() {
     { refetchInterval: 2000 } // Опрашиваем каждые 2 секунды
   );
 
-  // ВСЕГДА опрашиваем gameState — staleTime:0 чтобы не использовать кэш
+  // ВСЕГДА опрашиваем gameState — ТОЛЬКО для isComplete (редирект на результаты)
   const { data: gameState } = trpc.game.getCurrentState.useQuery(
     { roomId },
-    { refetchInterval: 1000, staleTime: 0 }
+    { refetchInterval: 2000 }
   );
 
-  // Синхронизируем isGameRunning с room.isStarted (единственный источник правды)
+  // Синхронизируем isGameRunning с room.isStarted
   useEffect(() => {
     if (room) {
       setIsGameRunning(room.room.isStarted);
@@ -52,34 +51,7 @@ export default function RoomPage() {
     }
   }, [room?.room.isStarted, room?.room.nValue]);
 
-  // Синхронизация состояния игры с сервером
-  useEffect(() => {
-    if (!gameState) return;
-    
-    // currentIndex — только монотонный рост
-    if (gameState.currentIndex >= currentIndexRef.current) {
-      setCurrentIndex(gameState.currentIndex);
-      currentIndexRef.current = gameState.currentIndex;
-    }
-    
-    // Сохраняем данные ВСЕХ игроков (включая ботов) локально
-    if (gameState.players && gameState.players.length > 0) {
-      setAllPlayers(gameState.players);
-    }
-      
-    setCurrentStimulus(gameState.currentStimulus ?? null);
-    setTotalStimuli(gameState.totalStimuli || 30);
-    
-    // Сбрасываем флаг ответа когда приходит новый стимул
-    if (gameState.currentIndex !== lastStimulusIndexRef.current) {
-      isAnsweringRef.current = false;
-      isProcessingAnswerRef.current = false;
-      setHasAnsweredForCurrentStimulus(false);
-      lastStimulusIndexRef.current = gameState.currentIndex;
-    }
-  }, [gameState]);
-
-  // Редирект при окончании игры
+  // Редирект при окончании игры — ЕДИНСТВЕННОЕ использование gameState
   useEffect(() => {
     const isComplete = gameState?.isComplete ?? false;
     if (isComplete && !gameCompletedRef.current) {
@@ -112,12 +84,11 @@ export default function RoomPage() {
   }, []);
       
   const startGameMutation = trpc.game.start.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsGameRunning(true);
       
       gameCompletedRef.current = false;
       currentIndexRef.current = 0;
-      lastStimulusIndexRef.current = 0;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -128,6 +99,17 @@ export default function RoomPage() {
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
       setCurrentIndex(0);
+      
+      // Инициализируем игроков из room.players (без score — они 0)
+      if (room?.players) {
+        setAllPlayers(room.players.map((p: any) => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: 0,
+          mistakes: 0,
+          correctAnswers: 0,
+        })));
+      }
       
       if (autoIntervalRef.current) {
         clearInterval(autoIntervalRef.current);
@@ -139,12 +121,11 @@ export default function RoomPage() {
   });
 
   const startTournamentRoundMutation = trpc.game.startTournamentRound.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsGameRunning(true);
       
       gameCompletedRef.current = false;
       currentIndexRef.current = 0;
-      lastStimulusIndexRef.current = 0;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -155,6 +136,17 @@ export default function RoomPage() {
       stimulusIntervalRef.current = 2000;
       setStimulusInterval(2000);
       setCurrentIndex(0);
+      
+      // Инициализируем игроков из room.players (без score — они 0)
+      if (room?.players) {
+        setAllPlayers(room.players.map((p: any) => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: 0,
+          mistakes: 0,
+          correctAnswers: 0,
+        })));
+      }
       
       if (autoIntervalRef.current) {
         clearInterval(autoIntervalRef.current);
@@ -179,6 +171,7 @@ export default function RoomPage() {
           : p
       ));
       
+      // Переключаем стимул сразу после ответа
       nextStimulusMutation.mutate({ roomId });
     },
     onError: () => {
@@ -188,18 +181,18 @@ export default function RoomPage() {
     },
   });
 
-  // nextStimulus — обновляем currentIndex и speedLevel напрямую из ответа
+  // nextStimulus — обновляем currentIndex, currentStimulus, speedLevel
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       
-      // Обновляем напрямую из ответа сервера
+      // Обновляем ВСЕ данные из ответа сервера
       setCurrentIndex(data.currentIndex);
       currentIndexRef.current = data.currentIndex;
       setSpeedLevel(data.speedLevel);
-      if (data.stimulus) {
+      if (data.stimulus !== undefined) {
         setCurrentStimulus(data.stimulus.position);
       }
       
@@ -224,7 +217,6 @@ export default function RoomPage() {
     
     gameCompletedRef.current = false;
     currentIndexRef.current = 0;
-    lastStimulusIndexRef.current = 0;
     isAnsweringRef.current = false;
     isProcessingAnswerRef.current = false;
     setHasAnsweredForCurrentStimulus(false);
