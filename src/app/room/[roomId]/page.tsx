@@ -24,8 +24,8 @@ export default function RoomPage() {
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
+  const [allPlayers, setAllPlayers] = useState<any[]>([]); // Локальное хранение всех игроков
   
-  // Используем refs для значений, которые не должны вызывать ререндеры
   const currentIndexRef = useRef(0);
   const lastStimulusIndexRef = useRef(0);
   const isAnsweringRef = useRef(false);
@@ -53,8 +53,6 @@ export default function RoomPage() {
   }, [room?.room.isStarted, room?.room.nValue]);
 
   // Синхронизация состояния игры с сервером
-  // ИСПОЛЬЗУЕМ gameState ТОЛЬКО для: currentStimulus, isComplete, players (боты)
-  // НЕ обновляем отсюда: score, mistakes, correctAnswers — они из submitAnswer.onSuccess
   useEffect(() => {
     if (!gameState) return;
     
@@ -64,9 +62,9 @@ export default function RoomPage() {
       currentIndexRef.current = gameState.currentIndex;
     }
     
-    // speedLevel — только монотонный рост (не уменьшаем)
-    if (gameState.speedLevel >= speedLevel) {
-      setSpeedLevel(gameState.speedLevel);
+    // Сохраняем данные ВСЕХ игроков (включая ботов) локально
+    if (gameState.players && gameState.players.length > 0) {
+      setAllPlayers(gameState.players);
     }
       
     setCurrentStimulus(gameState.currentStimulus ?? null);
@@ -79,7 +77,7 @@ export default function RoomPage() {
       setHasAnsweredForCurrentStimulus(false);
       lastStimulusIndexRef.current = gameState.currentIndex;
     }
-  }, [gameState, speedLevel]);
+  }, [gameState]);
 
   // Редирект при окончании игры
   useEffect(() => {
@@ -173,11 +171,17 @@ export default function RoomPage() {
       setScore(data.score);
       setMistakes(data.mistakes);
       setCorrectAnswers(data.correctAnswers);
-      // Сразу переключаем стимул после ответа
+      
+      // Обновляем локальные данные игрока
+      setAllPlayers(prev => prev.map(p => 
+        p.userId === room?.players[0]?.userId 
+          ? { ...p, score: data.score, mistakes: data.mistakes, correctAnswers: data.correctAnswers }
+          : p
+      ));
+      
       nextStimulusMutation.mutate({ roomId });
     },
     onError: () => {
-      // При ошибке сбрасываем флаги
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -201,19 +205,6 @@ export default function RoomPage() {
       
       if (data.isComplete) {
         setIsGameRunning(false);
-      }
-      
-      // Перезапускаем автотаймер
-      if (autoIntervalRef.current) {
-        clearInterval(autoIntervalRef.current);
-      }
-      if (!data.isComplete && isGameRunning) {
-        const intervalMs = stimulusIntervalRef.current;
-        autoIntervalRef.current = setInterval(() => {
-          if (!isAnsweringRef.current) {
-            nextStimulusMutation.mutate({ roomId });
-          }
-        }, intervalMs);
       }
     },
     onError: () => {
@@ -243,6 +234,7 @@ export default function RoomPage() {
     setCorrectAnswers(0);
     setSpeedLevel(0);
     setCurrentStimulus(null);
+    setAllPlayers([]);
     stimulusIntervalRef.current = 2000;
     setStimulusInterval(2000);
     
@@ -539,10 +531,10 @@ export default function RoomPage() {
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
                 <h3 className="text-lg font-semibold mb-3 text-white">🏆 Счёт</h3>
                 <div className="space-y-2">
-                  {!gameState?.players ? (
+                  {allPlayers.length === 0 ? (
                     <div className="text-purple-300 text-sm text-center py-4">Загрузка...</div>
                   ) : (
-                    gameState.players.map((player: any, idx: number) => {
+                    allPlayers.map((player: any, idx: number) => {
                       const isBot = player.isBot;
                       const isYou = !isBot && idx === 0;
                       
