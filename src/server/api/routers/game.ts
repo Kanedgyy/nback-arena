@@ -250,6 +250,14 @@ export const gameRouter = router({
         stimulus: currentStimulus ? { position: currentStimulus.position } : undefined,
         speedLevel: roomState.speedLevel,
         isComplete,
+        // Возвращаем актуальные данные ВСЕХ игроков (включая ботов)
+        players: Array.from(roomState.players.values()).map(p => ({
+          userId: p.userId,
+          isBot: p.isBot,
+          score: p.score,
+          mistakes: p.mistakes,
+          correctAnswers: p.correctAnswers,
+        })),
       };
     }),
 

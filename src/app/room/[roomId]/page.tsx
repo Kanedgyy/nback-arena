@@ -24,10 +24,12 @@ export default function RoomPage() {
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
-  const [allPlayers, setAllPlayers] = useState<any[]>([]); // Локальное хранение всех игроков
+  const [allPlayers, setAllPlayers] = useState<any[]>([]);
+  const [lastActionTime, setLastActionTime] = useState(0); // Для пересоздания автотаймера
   
   const currentIndexRef = useRef(0);
   const isAnsweringRef = useRef(false);
+  const isNextStimulusPendingRef = useRef(false); // БЛОКИРОВКА параллельных nextStimulus
   const gameCompletedRef = useRef(false);
 
   const utils = trpc.useUtils();
@@ -90,6 +92,7 @@ export default function RoomPage() {
       gameCompletedRef.current = false;
       currentIndexRef.current = 0;
       isAnsweringRef.current = false;
+      isNextStimulusPendingRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       setScore(0);
@@ -116,6 +119,7 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
       
+      setLastActionTime(Date.now());
       nextStimulusMutation.mutate({ roomId });
     },
   });
@@ -127,6 +131,7 @@ export default function RoomPage() {
       gameCompletedRef.current = false;
       currentIndexRef.current = 0;
       isAnsweringRef.current = false;
+      isNextStimulusPendingRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
       setScore(0);
@@ -153,6 +158,7 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
       
+      setLastActionTime(Date.now());
       nextStimulusMutation.mutate({ roomId });
     },
   });
@@ -164,26 +170,29 @@ export default function RoomPage() {
       setMistakes(data.mistakes);
       setCorrectAnswers(data.correctAnswers);
       
-      // Обновляем локальные данные игрока
+      // Обновляем локальные данные игрока в allPlayers
       setAllPlayers(prev => prev.map(p => 
         p.userId === room?.players[0]?.userId 
           ? { ...p, score: data.score, mistakes: data.mistakes, correctAnswers: data.correctAnswers }
           : p
       ));
       
-      // Переключаем стимул сразу после ответа
-      nextStimulusMutation.mutate({ roomId });
+      // Сбрасываем флаги — nextStimulus вызовется автотаймером или вручную
+      isAnsweringRef.current = false;
+      setLastActionTime(Date.now()); // Пересоздаём автотаймер
     },
     onError: () => {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
+      setLastActionTime(Date.now());
     },
   });
 
-  // nextStimulus — обновляем currentIndex, currentStimulus, speedLevel
+  // nextStimulus — обновляем currentIndex, currentStimulus, speedLevel И ВСЕХ ИГРОКОВ
   const nextStimulusMutation = trpc.game.nextStimulus.useMutation({
     onSuccess: (data) => {
+      isNextStimulusPendingRef.current = false;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
@@ -196,14 +205,24 @@ export default function RoomPage() {
         setCurrentStimulus(data.stimulus.position);
       }
       
+      // ОБНОВЛЯЕМ ВСЕХ ИГРОКОВ (включая ботов) из ответа сервера
+      if (data.players && data.players.length > 0) {
+        setAllPlayers(data.players);
+      }
+      
       if (data.isComplete) {
         setIsGameRunning(false);
       }
+      
+      // Пересоздаём автотаймер
+      setLastActionTime(Date.now());
     },
     onError: () => {
+      isNextStimulusPendingRef.current = false;
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
       setHasAnsweredForCurrentStimulus(false);
+      setLastActionTime(Date.now());
     },
   });
 
@@ -218,6 +237,7 @@ export default function RoomPage() {
     gameCompletedRef.current = false;
     currentIndexRef.current = 0;
     isAnsweringRef.current = false;
+    isNextStimulusPendingRef.current = false;
     isProcessingAnswerRef.current = false;
     setHasAnsweredForCurrentStimulus(false);
     setCurrentIndex(0);
@@ -229,6 +249,7 @@ export default function RoomPage() {
     setAllPlayers([]);
     stimulusIntervalRef.current = 2000;
     setStimulusInterval(2000);
+    setLastActionTime(Date.now());
     
     if (autoIntervalRef.current) {
       clearInterval(autoIntervalRef.current);
@@ -237,7 +258,7 @@ export default function RoomPage() {
   }, [roomId]);
 
   const handleAnswer = (answer: boolean) => {
-    if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current) {
+    if (!room || !isGameRunning || isAnsweringRef.current || isProcessingAnswerRef.current || isNextStimulusPendingRef.current) {
       return;
     }
     
@@ -248,21 +269,16 @@ export default function RoomPage() {
     
     isAnsweringRef.current = true;
     isProcessingAnswerRef.current = true;
+    isNextStimulusPendingRef.current = true; // БЛОКИРОВКА
     setHasAnsweredForCurrentStimulus(true);
-    
-    // Очищаем автотаймер — переключение будет через submitAnswer.onSuccess
-    if (autoIntervalRef.current) {
-      clearInterval(autoIntervalRef.current);
-      autoIntervalRef.current = null;
-    }
     
     submitAnswerMutation.mutate({ roomId, playerId, answer, stimulusIndex });
   };
 
-  // Автотаймер — только если игрок НЕ отвечает
+  // Автотаймер — пересоздаётся после каждого действия (lastActionTime) и при изменении speedLevel
   useEffect(() => {
     if (!isGameRunning || gameCompletedRef.current) return;
-    if (isAnsweringRef.current) return;
+    if (isAnsweringRef.current || isNextStimulusPendingRef.current) return;
 
     if (autoIntervalRef.current) {
       clearInterval(autoIntervalRef.current);
@@ -271,7 +287,8 @@ export default function RoomPage() {
 
     const intervalMs = stimulusIntervalRef.current;
     autoIntervalRef.current = setInterval(() => {
-      if (!isAnsweringRef.current) {
+      if (!isAnsweringRef.current && !isNextStimulusPendingRef.current) {
+        isNextStimulusPendingRef.current = true;
         nextStimulusMutation.mutate({ roomId });
       }
     }, intervalMs);
@@ -282,7 +299,7 @@ export default function RoomPage() {
         autoIntervalRef.current = null;
       }
     };
-  }, [isGameRunning, roomId]);
+  }, [isGameRunning, roomId, lastActionTime, speedLevel]);
 
   // Обновляем интервал без пересоздания таймера
   useEffect(() => {
