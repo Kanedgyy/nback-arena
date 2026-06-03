@@ -25,12 +25,15 @@ export default function RoomPage() {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [hasAnsweredForCurrentStimulus, setHasAnsweredForCurrentStimulus] = useState(false);
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
-  const [lastActionTime, setLastActionTime] = useState(0); // Для пересоздания автотаймера
+  const [lastActionTime, setLastActionTime] = useState(0);
   
   const currentIndexRef = useRef(0);
   const isAnsweringRef = useRef(false);
-  const isNextStimulusPendingRef = useRef(false); // БЛОКИРОВКА параллельных nextStimulus
+  const isNextStimulusPendingRef = useRef(false);
   const gameCompletedRef = useRef(false);
+  const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stimulusIntervalRef = useRef(2000);
+  const isProcessingAnswerRef = useRef(false);
 
   const utils = trpc.useUtils();
 
@@ -226,10 +229,6 @@ export default function RoomPage() {
     },
   });
 
-  const autoIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const stimulusIntervalRef = useRef(2000);
-  const isProcessingAnswerRef = useRef(false);
-
   // СБРОС при монтировании
   useEffect(() => {
     utils.room.get.invalidate({ roomId });
@@ -339,47 +338,57 @@ export default function RoomPage() {
 
   if (!room) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center">
-        <div className="text-white text-2xl">Загрузка...</div>
+      <div className="min-h-screen bg-gradient-to-br from-pink-600 via-rose-500 to-cyan-400 flex items-center justify-center">
+        <div className="text-white text-2xl font-bold animate-pulse">Загрузка...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-white text-center mb-2">
-          {room.room.name}
-        </h1>
-        <p className="text-purple-200 text-center mb-6">
-          ID сессии: <code className="bg-white/20 px-2 py-1 rounded text-sm">{roomId}</code>
-        </p>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-pink-600 via-rose-500 to-cyan-400 animate-gradient-xy"></div>
+      
+      {/* Floating orbs */}
+      <div className="absolute top-20 left-10 w-72 h-72 bg-pink-400/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-20 right-10 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
 
-        {!isGameRunning ? (
+      <div className="relative z-10 py-8 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-5xl font-black text-white text-center mb-3 drop-shadow-lg">
+            {room.room.name}
+          </h1>
+          <p className="text-white/80 text-center mb-6 text-lg">
+            ID сессии: <code className="bg-white/20 px-3 py-1.5 rounded-xl font-bold">{roomId}</code>
+          </p>
+
+          {!isGameRunning ? (
           /* Лобби комнаты */
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border-2 border-white/20">
-            <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-3">
-              <div className="flex justify-between text-white/80">
-                <span>Режим:</span>
-                <span className="font-semibold">
+          <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-8 border-2 border-white/20 shadow-2xl">
+            <div className="bg-white/5 rounded-2xl p-5 mb-6 space-y-3 border border-white/10">
+              <div className="flex justify-between text-white/90 text-lg">
+                <span className="font-semibold">Режим:</span>
+                <span className="font-bold text-pink-300">
                   {room.room.isTournament ? '🏆 Турнир' : '✨ Обычный'}
                 </span>
               </div>
-              <div className="flex justify-between text-white/80">
-                <span>N-Value:</span>
-                <span className="font-semibold">
+              <div className="flex justify-between text-white/90 text-lg">
+                <span className="font-semibold">N-Value:</span>
+                <span className="font-bold text-cyan-300">
                   {room.room.isTournament 
                     ? `${room.room.nValue}-Back (раунд ${room.room.tournamentRound}/3)` 
                     : `${room.room.nValue}-Back`}
                 </span>
               </div>
-              <div className="flex justify-between text-white/80">
-                <span>Игроки:</span>
-                <span className="font-semibold">{room.players.length} / {room.room.maxPlayers}</span>
+              <div className="flex justify-between text-white/90 text-lg">
+                <span className="font-semibold">Игроки:</span>
+                <span className="font-bold text-yellow-300">
+                  {room.players.length} / {room.room.maxPlayers}
+                </span>
               </div>
-              <div className="flex justify-between text-white/80">
-                <span>Статус:</span>
-                <span className="font-semibold">
+              <div className="flex justify-between text-white/90 text-lg">
+                <span className="font-semibold">Статус:</span>
+                <span className="font-bold">
                   {room.room.isStarted ? '🔴 Идёт игра' : '🟢 Ожидание'}
                 </span>
               </div>
@@ -387,28 +396,34 @@ export default function RoomPage() {
 
             {/* Список всех игроков в лобби */}
             <div className="mb-6">
-              <h3 className="text-white font-semibold mb-3">👥 Участники</h3>
-              <div className="space-y-2">
+              <h3 className="text-white font-black text-2xl mb-4">👥 Участники</h3>
+              <div className="space-y-3">
                 {room.players.map((player: any, idx: number) => (
                   <div
                     key={player.id}
-                    className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                    className="bg-white/10 rounded-2xl p-4 flex justify-between items-center border border-white/10 hover:bg-white/15 transition-all"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       {player.isBot ? (
                         <>
-                          <span className="text-xl">🤖</span>
-                          <span className="text-white">{getBotName(player.userId, idx)}</span>
+                          <span className="text-3xl">🤖</span>
+                          <span className="text-white font-bold text-lg">
+                            {getBotName(player.userId, idx)}
+                          </span>
                         </>
                       ) : (
                         <>
-                          <span className="text-xl">👤</span>
-                          <span className="text-white">{idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`}</span>
+                          <span className="text-3xl">👤</span>
+                          <span className="text-white font-bold text-lg">
+                            {idx === 0 ? '👑 Вы' : `Игрок ${idx + 1}`}
+                          </span>
                         </>
                       )}
                     </div>
                     {player.isBot && (
-                      <span className="text-xs text-purple-300">{getBotDifficultyLabel(player.botDifficulty)}</span>
+                      <span className="text-sm font-semibold text-cyan-300 px-3 py-1 bg-cyan-400/10 rounded-full">
+                        {getBotDifficultyLabel(player.botDifficulty)}
+                      </span>
                     )}
                   </div>
                 ))}
@@ -417,22 +432,22 @@ export default function RoomPage() {
 
             {/* Управление ботами */}
             <div className="mb-6">
-              <h3 className="text-white font-semibold mb-3">🤖 Боты</h3>
+              <h3 className="text-white font-black text-2xl mb-4">🤖 Боты</h3>
               
               {/* Список ботов */}
-              <div className="space-y-2 mb-4">
+              <div className="space-y-3 mb-5">
                 {room.players.filter((p: any) => p.isBot).map((bot: any, botIdx: number) => (
                   <div
                     key={bot.id}
-                    className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                    className="bg-white/10 rounded-2xl p-4 flex justify-between items-center border border-white/10"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">🤖</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl">🤖</span>
                       <div>
-                        <div className="text-white font-medium">
+                        <div className="text-white font-black text-lg">
                           {getBotName(bot.userId, botIdx)}
                         </div>
-                        <div className="text-xs text-purple-300">
+                        <div className="text-sm font-semibold text-cyan-300">
                           {getBotDifficultyLabel(bot.botDifficulty)}
                         </div>
                       </div>
@@ -440,29 +455,29 @@ export default function RoomPage() {
                     <button
                       onClick={() => removeBotMutation.mutate({ roomId, botId: bot.userId })}
                       disabled={removeBotMutation.isPending}
-                      className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-sm transition-all disabled:opacity-50"
+                      className="px-4 py-2 bg-red-500/30 hover:bg-red-500/50 text-white font-bold rounded-xl transition-all disabled:opacity-50 text-lg"
                     >
                       ✕
                     </button>
                   </div>
                 ))}
                 {room.players.filter((p: any) => p.isBot).length === 0 && (
-                  <div className="text-purple-300 text-sm text-center py-4">
+                  <div className="text-white/70 text-lg text-center py-5 bg-white/5 rounded-2xl">
                     Нет ботов в комнате
                   </div>
                 )}
               </div>
 
               {/* Добавление бота */}
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <select
                   id="botDifficulty"
-                  className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-pink-400"
+                  className="flex-1 px-4 py-3 bg-white/15 border-2 border-white/20 rounded-xl text-white font-semibold focus:ring-4 focus:ring-pink-400/30 focus:border-pink-400 transition-all"
                   defaultValue={2}
                 >
-                  <option value={1} className="bg-white text-purple-900">Легко</option>
-                  <option value={2} className="bg-white text-purple-900">Средне</option>
-                  <option value={3} className="bg-white text-purple-900">Сложно</option>
+                  <option value={1} className="bg-white text-purple-900">🟢 Легко</option>
+                  <option value={2} className="bg-white text-purple-900">🟡 Средне</option>
+                  <option value={3} className="bg-white text-purple-900">🔴 Сложно</option>
                 </select>
                 <button
                   onClick={() => {
@@ -470,9 +485,9 @@ export default function RoomPage() {
                     addBotMutation.mutate({ roomId, difficulty });
                   }}
                   disabled={addBotMutation.isPending || room.players.length >= room.room.maxPlayers}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                 >
-                  {addBotMutation.isPending ? '...' : '➕ Добавить'}
+                  {addBotMutation.isPending ? '⏳' : '➕ Добавить'}
                 </button>
               </div>
             </div>
@@ -486,12 +501,12 @@ export default function RoomPage() {
                 }
               }}
               disabled={startGameMutation.isPending || startTournamentRoundMutation.isPending || room.room.isStarted}
-              className="w-full py-3 px-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 px-6 bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-400 hover:via-rose-400 hover:to-pink-500 text-white font-black text-xl rounded-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] shadow-xl shadow-pink-500/30"
             >
               {startGameMutation.isPending || startTournamentRoundMutation.isPending
-                ? 'Запуск...' 
+                ? '⏳ Запуск...' 
                 : room.room.isStarted 
-                  ? 'Игра уже идёт' 
+                  ? '🔴 Игра уже идёт' 
                   : room.room.isTournament
                     ? '🏆 Начать турнир (1-Back)'
                     : '▶️ Начать игру'}
@@ -499,21 +514,21 @@ export default function RoomPage() {
 
             <button
               onClick={() => router.push('/')}
-              className="w-full mt-3 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-all"
+              className="w-full mt-4 py-4 px-6 bg-white/15 hover:bg-white/25 text-white font-black text-lg rounded-2xl transition-all border-2 border-white/20"
             >
               ← Вернуться на главную
             </button>
           </div>
         ) : (
           /* Игровой экран */
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid lg:grid-cols-2 gap-6">
             <div className="space-y-6">
-              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/20">
-                <h2 className="text-xl font-semibold mb-4 text-center text-white">
+              <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-6 border-2 border-white/20 shadow-xl">
+                <h2 className="text-2xl font-black text-white text-center mb-4">
                   {nValue}-Back Challenge
                 </h2>
-                <p className="text-center text-purple-200 mb-6 text-sm">
-                  Нажми "Совпадает", если текущая позиция совпадает с позицией из {nValue} шагов назад
+                <p className="text-center text-white/80 mb-6 text-base">
+                  Нажми "Совпадает", если позиция совпадает с позицией из {nValue} шагов назад
                 </p>
                 
                 <GameGrid activePosition={currentStimulus ?? 0} nValue={nValue} />
@@ -537,11 +552,11 @@ export default function RoomPage() {
                 stimulusInterval={stimulusInterval}
               />
 
-              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border-2 border-white/20">
-                <h3 className="text-lg font-semibold mb-3 text-white">🏆 Счёт</h3>
-                <div className="space-y-2">
+              <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-5 border-2 border-white/20 shadow-xl">
+                <h3 className="text-xl font-black text-white mb-4">🏆 Счёт</h3>
+                <div className="space-y-3">
                   {allPlayers.length === 0 ? (
-                    <div className="text-purple-300 text-sm text-center py-4">Загрузка...</div>
+                    <div className="text-white/70 text-base text-center py-5">Загрузка...</div>
                   ) : (
                     allPlayers.map((player: any, idx: number) => {
                       const isBot = player.isBot;
@@ -550,17 +565,21 @@ export default function RoomPage() {
                       return (
                         <div
                           key={player.userId}
-                          className="bg-white/5 rounded-lg p-3 flex justify-between items-center"
+                          className={`rounded-2xl p-4 flex justify-between items-center ${
+                            isYou 
+                              ? 'bg-gradient-to-r from-pink-500/30 to-rose-500/30 border-2 border-pink-400/50'
+                              : 'bg-white/5 border border-white/10'
+                          }`}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             {isBot ? (
                               <>
-                                <span className="text-2xl">🤖</span>
+                                <span className="text-3xl">🤖</span>
                                 <div>
-                                  <div className="text-white font-medium">
+                                  <div className="text-white font-bold text-lg">
                                     {getBotName(player.userId, idx)}
                                   </div>
-                                  <div className="text-xs text-purple-300">
+                                  <div className="text-xs font-semibold text-cyan-300">
                                     {getBotDifficultyLabel(
                                       room.players.find((p: any) => p.userId === player.userId)?.botDifficulty ?? null
                                     )}
@@ -569,15 +588,15 @@ export default function RoomPage() {
                               </>
                             ) : (
                               <div>
-                                <div className="text-white font-medium">
+                                <div className="text-white font-black text-lg">
                                   {isYou ? '👑 Вы' : `Игрок ${idx + 1}`}
                                 </div>
                               </div>
                             )}
                           </div>
                           <div className="text-right">
-                            <div className="text-white font-bold">{player.score} очк.</div>
-                            <div className="text-xs text-red-300">{player.mistakes} ошиб.</div>
+                            <div className="text-white font-black text-2xl">{player.score}</div>
+                            <div className="text-xs font-semibold text-red-300">{player.mistakes} ошиб.</div>
                           </div>
                         </div>
                       );
@@ -587,7 +606,8 @@ export default function RoomPage() {
               </div>
             </div>
           </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
