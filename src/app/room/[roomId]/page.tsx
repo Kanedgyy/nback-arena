@@ -180,13 +180,20 @@ export default function RoomPage() {
           : p
       ));
       
-      // Сбрасываем флаги — nextStimulus вызовется автотаймером или вручную
+      // Сбрасываем флаги и вызываем nextStimulus
       isAnsweringRef.current = false;
-      setLastActionTime(Date.now()); // Пересоздаём автотаймер
+      isProcessingAnswerRef.current = false;
+      isNextStimulusPendingRef.current = false; // РАСБЛОКИРОВКА
+      setHasAnsweredForCurrentStimulus(false);
+      setLastActionTime(Date.now());
+      
+      // Сразу вызываем nextStimulus после ответа
+      nextStimulusMutation.mutate({ roomId });
     },
     onError: () => {
       isAnsweringRef.current = false;
       isProcessingAnswerRef.current = false;
+      isNextStimulusPendingRef.current = false; // РАСБЛОКИРОВКА
       setHasAnsweredForCurrentStimulus(false);
       setLastActionTime(Date.now());
     },

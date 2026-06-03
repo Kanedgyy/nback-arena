@@ -48,7 +48,7 @@ function CreateRoomForm() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
       {/* Animated background */}
       <div className="absolute inset-0 bg-gradient-to-br from-pink-600 via-rose-500 to-cyan-400 animate-gradient-xy"></div>
       
@@ -56,7 +56,7 @@ function CreateRoomForm() {
       <div className="absolute top-20 left-10 w-72 h-72 bg-pink-400/20 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
 
-      <div className="relative z-10 w-full max-w-md p-4">
+      <div className="relative z-10 w-full max-w-md">
         <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-8 border-2 border-white/20 shadow-2xl">
           <h1 className="text-4xl font-black text-white text-center mb-3">
             {isTournament ? '🏆 Создать турнир' : '✨ Создать игру'}
