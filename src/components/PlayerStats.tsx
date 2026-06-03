@@ -24,48 +24,48 @@ export function PlayerStats({
   const progress = (currentStimulusIndex / totalStimuli) * 100;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4">
+    <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-6 border-2 border-white/20 shadow-2xl space-y-5">
       <div className="flex justify-between items-center">
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">N-Value</p>
-          <p className="text-2xl font-bold">{nValue}-back</p>
+          <p className="text-sm text-white/70 font-semibold">N-Value</p>
+          <p className="text-3xl font-black text-white">{nValue}-Back</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Score</p>
-          <p className="text-2xl font-bold text-blue-600">{score}</p>
+          <p className="text-sm text-white/70 font-semibold">Счёт</p>
+          <p className="text-4xl font-black text-cyan-300">{score}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Correct</p>
-          <p className="text-lg font-semibold text-green-600">{correctAnswers}</p>
+        <div className="bg-green-500/20 rounded-2xl p-4 border border-green-400/30">
+          <p className="text-sm text-white/70 font-semibold">Верно</p>
+          <p className="text-2xl font-black text-green-300">{correctAnswers}</p>
         </div>
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Mistakes</p>
-          <p className="text-lg font-semibold text-red-600">{mistakes}</p>
+        <div className="bg-red-500/20 rounded-2xl p-4 border border-red-400/30">
+          <p className="text-sm text-white/70 font-semibold">Ошибки</p>
+          <p className="text-2xl font-black text-red-300">{mistakes}</p>
         </div>
       </div>
 
       <div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-          Progress: {currentStimulusIndex} / {totalStimuli}
+        <p className="text-sm text-white/70 font-semibold mb-2">
+          Прогресс: {currentStimulusIndex} / {totalStimuli}
         </p>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-white/10 rounded-full h-4 border-2 border-white/20">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-pink-500 to-cyan-500 h-4 rounded-full transition-all duration-300 shadow-lg"
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
 
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Interval: {stimulusInterval}ms
+        <p className="text-sm text-white/70 font-semibold">
+          Скорость: {stimulusInterval}ms
         </p>
         {speedLevel > 0 && (
-          <div className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-3 py-2 rounded text-sm">
-            ⚡ Speed Level: {speedLevel}
+          <div className="bg-gradient-to-r from-yellow-500/30 to-orange-500/30 text-white px-4 py-2 rounded-xl border-2 border-yellow-400/50 font-bold">
+            ⚡ Скорость: {speedLevel}
           </div>
         )}
       </div>

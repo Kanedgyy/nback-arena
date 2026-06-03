@@ -12,7 +12,7 @@ export function GameControls({ onSubmitAnswer, isGameRunning, disabled = false }
       <button
         onClick={() => onSubmitAnswer(true)}
         disabled={!isGameRunning || disabled}
-        className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        className="px-10 py-5 bg-gradient-to-r from-pink-500 via-rose-500 to-cyan-500 hover:from-pink-400 hover:via-rose-400 hover:to-cyan-400 text-white font-black text-xl rounded-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 shadow-xl shadow-pink-500/30"
       >
         ✓ Совпадение
       </button>
