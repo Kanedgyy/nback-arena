@@ -34,10 +34,15 @@ export const auth = betterAuth({
   },
   advanced: {
     useSecureCookies: process.env.NODE_ENV === 'production',
+    // Отключаем генерацию ID в better-auth - БД сама генерирует UUID через defaultRandom()
+    database: {
+      generateId: false,
+    },
   },
   baseURL: authUrl,
   // Используем секрет из переменных окружения или генерируем временный
   secret: secret || 'fallback-secret-change-in-production-min-32-chars',
+  
   // Кастомный колбэк для интеграции с tRPC
   callbacks: {
     async session({ session, user }: { session: any; user: any }) {
