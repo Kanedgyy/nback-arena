@@ -15,6 +15,13 @@
       "when": 1779910744783,
       "tag": "0001_even_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780591617118,
+      "tag": "0002_overjoyed_robin_chapel",
+      "breakpoints": true
     }
   ]
 }
