@@ -25,6 +25,8 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // Отключаем строгую валидацию email для поддержки различных форматов
+    disableEmailVerification: true,
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 дней
