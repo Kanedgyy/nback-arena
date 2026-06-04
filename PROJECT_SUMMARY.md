@@ -20,11 +20,11 @@
 ### 3. Технические требования ✓
 - [x] TypeScript со строгой типизацией
 - [x] Next.js 16 (App Router)
-- [x] tRPC для type-safe API
+- [x] tRPC для type-safe API с SSE subscriptions
 - [x] Drizzle ORM
 - [x] PostgreSQL схема (Neon совместим)
-- [x] Better Auth конфигурация
-- [x] WebSocket сервер для real-time (ws)
+- [x] Better Auth с кастомным адаптером
+- [x] tRPC SSE subscriptions для real-time
 - [x] Юнит-тесты (25 тестов, все проходят)
 
 ### 4. Дополнительное задание ✓
@@ -58,9 +58,9 @@ nback-game/
 │   │   │   ├── schema.ts                # Схема БД (4 таблицы)
 │   │   │   └── index.ts                 # Клиент БД
 │   │   └── game/
-│   │       ├── nback-engine.ts          # Ядро игры (18 функций)
-│   │       └── websocket.ts             # WebSocket сервер
-│   └── trpc.ts                          # tRPC клиент
+│   │       └── nback-engine.ts          # Ядро игры (18 функций)
+│   └── context.ts                       # tRPC контекст с auth
+│   └── trpc.ts                          # tRPC клиент (с SSE)
 ├── drizzle/
 │   └── 0000_wonderful_iron_lad.sql      # Миграция БД
 ├── tests/
@@ -102,6 +102,7 @@ simulateBotResponse(player, actualMatch): boolean
 - `room.start` - Начать игру
 
 **Game Router:**
+- `game.onGameUpdate` - Subscription для real-time обновлений (SSE)
 - `game.submitAnswer` - Отправить ответ
 - `game.nextStimulus` - Следующий стимул
 - `game.getCurrentState` - Текущее состояние
@@ -170,11 +171,10 @@ npm run dev
 ### Основные:
 - `next` 16.2.6 - Framework
 - `typescript` 5 - Type safety
-- `@trpc/server`, `@trpc/client`, `@trpc/react-query` - API
+- `@trpc/server`, `@trpc/client`, `@trpc/react-query` - API с SSE support
 - `drizzle-orm` - ORM
 - `@neondatabase/serverless` - PostgreSQL
-- `better-auth` - Auth
-- `ws` - WebSocket
+- `better-auth` - Auth с кастомным адаптером
 - `zod` - Validation
 
 ### Dev:
@@ -207,28 +207,25 @@ npm run dev
 
 | Библиотека | Альтернативы | Почему выбрана |
 |------------|--------------|----------------|
-| **tRPC** | GraphQL, REST | Type-safe, меньше бандл, IDE support |
+| **tRPC** | GraphQL, REST | Type-safe, меньше бандл, IDE support, встроенные subscriptions |
 | **Drizzle** | Prisma, Kysely | Лёгкий, SQL-like, быстрые миграции |
-| **Better Auth** | NextAuth, Clerk | Современный, лёгкий, встроенная БД |
-| **ws** | Socket.io, Pusher | Минималистичный, быстрый, достаточно для задачи |
+| **Better Auth** | NextAuth, Clerk | Современный, лёгкий, встроенная БД, кастомные адаптеры |
+| **SSE (tRPC)** | WebSocket, Socket.io | Работает на Vercel, автоматический переподключение, проще |
 | **Vitest** | Jest, Mocha | Быстрый, встроенная TS поддержка, современный |
 
 ## 📝 Known Limitations
 
-1. **WebSocket отдельный сервер** - Требует отдельного порта (8080)
-2. **In-memory room states** - В продакшене нужен Redis
-3. **Mock auth** - Better Auth нужно настроить с реальной БД
-4. **Vercel deployment** - WebSocket не поддерживается, нужен отдельный сервис
+1. **In-memory room states** - В продакшене нужен Redis
+2. **Mock auth** - Better Auth нужно настроить с реальной БД
 
 ## 🎓 Что можно улучшить
 
 1. **Redis** для хранения room states
 2. **Tournament mode** - Несколько раундов, таблица лидеров
-3. **WebSocket интеграция** - Полная real-time синхронизация
-4. **Better Auth** - Полная настройка с email verification
-5. **Leaderboard** - Глобальная таблица результатов
-6. **Mobile app** - React Native версия
-7. **Analytics** - Статистика прогресса игрока
+3. **Better Auth** - Полная настройка с email verification
+4. **Leaderboard** - Глобальная таблица результатов
+5. **Mobile app** - React Native версия
+6. **Analytics** - Статистика прогресса игрока
 
 ## ✅ Готово к демонстрации!
 

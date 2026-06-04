@@ -3,6 +3,8 @@ import { router, publicProcedure } from '../trpc';
 import { rooms, roomPlayers, gameResults } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { db } from '@/server/db';
+import { EventEmitter } from 'node:events';
+import { observable } from '@trpc/server/observable';
 import { 
   createRoomState, 
   addPlayer, 
@@ -18,8 +20,40 @@ import {
   type PlayerState,
 } from '@/server/game/nback-engine';
 
-// In-memory cache (for performance)
+// In-memory cache for room states
 const roomStatesCache = new Map<string, RoomState>();
+
+// Event emitters for game updates (for subscriptions)
+const gameEventEmitters = new Map<string, EventEmitter>();
+
+function getGameEmitter(roomId: string): EventEmitter {
+  let emitter = gameEventEmitters.get(roomId);
+  if (!emitter) {
+    emitter = new EventEmitter();
+    emitter.setMaxListeners(100); // Support multiple subscribers
+    gameEventEmitters.set(roomId, emitter);
+  }
+  return emitter;
+}
+
+async function emitGameUpdate(roomId: string, update: GameUpdate) {
+  const emitter = getGameEmitter(roomId);
+  emitter.emit('update', update);
+}
+
+interface GameUpdate {
+  type: 'stimulus_updated' | 'answer_submitted' | 'game_started' | 'game_ended' | 'player_joined' | 'player_left';
+  currentIndex?: number;
+  stimulus?: { position: number };
+  progress?: number;
+  isComplete?: boolean;
+  speedLevel?: number;
+  interval?: number;
+  userId?: string;
+  answer?: boolean;
+  result?: any;
+  rankings?: any[];
+}
 
 // Load room state from DB or cache
 async function loadRoomState(roomId: string): Promise<RoomState | null> {
@@ -92,6 +126,31 @@ async function saveRoomState(roomId: string, roomState: RoomState) {
 }
 
 export const gameRouter = router({
+  // Subscription для получения обновлений игры в реальном времени
+  onGameUpdate: publicProcedure
+    .input(z.object({
+      roomId: z.string(),
+    }))
+    .subscription(({ input }) => {
+      const { roomId } = input;
+      const emitter = getGameEmitter(roomId);
+
+      return observable<GameUpdate>((emit) => {
+        // Обработчик обновлений
+        const handler = (update: GameUpdate) => {
+          emit.next(update);
+        };
+
+        // Подписываемся на обновления
+        emitter.on('update', handler);
+
+        // Очищаем подписку при отключении клиента
+        return () => {
+          emitter.off('update', handler);
+        };
+      });
+    }),
+
   start: publicProcedure
     .input(z.object({
       roomId: z.string(),
@@ -128,7 +187,7 @@ export const gameRouter = router({
 
         // Сохраняем состояние в БД
         await saveRoomState(input.roomId, newRoomState);
-
+        
         // Запускаем игру
         const roomState = newRoomState;
         roomState.isRunning = true;
@@ -140,6 +199,13 @@ export const gameRouter = router({
 
         // Update room status
         await db.update(rooms).set({ isStarted: true }).where(eq(rooms.id, input.roomId));
+
+        // Отправляем обновление о запуске игры
+        await emitGameUpdate(input.roomId, {
+          type: 'game_started',
+          currentIndex: roomState.currentIndex,
+          stimulus: getCurrentStimulus(roomState) ? { position: getCurrentStimulus(roomState)!.position } : undefined,
+        });
 
         return {
           success: true,
@@ -205,6 +271,14 @@ export const gameRouter = router({
       const speedIncreased = checkSpeedIncrease(roomState);
       const currentPlayer = roomState.players.get(input.playerId);
 
+      // Отправляем обновление через subscription
+      await emitGameUpdate(input.roomId, {
+        type: 'answer_submitted',
+        userId: input.playerId,
+        answer: input.answer,
+        result,
+      });
+
       // Сохраняем после ответа
       await saveRoomState(input.roomId, roomState);
 
@@ -238,12 +312,28 @@ export const gameRouter = router({
       const isComplete = roomState.currentIndex >= roomState.sequence.length;
       if (isComplete) {
         roomState.isRunning = false;
+        
+        // Отправляем обновление о завершении игры
+        await emitGameUpdate(input.roomId, {
+          type: 'game_ended',
+          rankings: getPlayerRankings(roomState),
+        });
       }
+      
+      // Отправляем обновление стимула
+      const currentStimulus = getCurrentStimulus(roomState);
+      await emitGameUpdate(input.roomId, {
+        type: 'stimulus_updated',
+        currentIndex: roomState.currentIndex,
+        stimulus: currentStimulus ? { position: currentStimulus.position } : undefined,
+        progress: getGameProgress(roomState).progress,
+        isComplete,
+        speedLevel: roomState.speedLevel,
+        interval: roomState.stimulusInterval,
+      });
 
       // Сохраняем после перехода
       await saveRoomState(input.roomId, roomState);
-
-      const currentStimulus = getCurrentStimulus(roomState);
 
       return {
         currentIndex: roomState.currentIndex,

@@ -77,3 +77,4 @@ export const db = new Proxy({} as DbClient, {
 
 export { sql } from 'drizzle-orm';
 export * from './schema';
+

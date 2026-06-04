@@ -1,4 +1,6 @@
 import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { db } from '~/server/db';
 
 const databaseUrl = process.env.DATABASE_URL;
 const authUrl = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
@@ -13,22 +15,36 @@ if (!secret) {
 }
 
 export const auth = betterAuth({
-  database: {
-    provider: 'postgresql',
-    url: databaseUrl!,
-  },
+  // Используем drizzle adapter для интеграции с нашей БД
+  database: drizzleAdapter(db, {
+    provider: 'pg' as const,
+    schema: {} as any, // Схема будет использована из better-auth
+  }),
   emailAndPassword: {
     enabled: true,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7,
-    updateAge: 60 * 60 * 24,
+    expiresIn: 60 * 60 * 24 * 7, // 7 дней
+    updateAge: 60 * 60 * 24, // Обновляем сессию каждый день
   },
   advanced: {
     useSecureCookies: process.env.NODE_ENV === 'production',
   },
   baseURL: authUrl,
   secret: secret,
+  // Кастомный колбэк для интеграции с tRPC
+  callbacks: {
+    async session({ session, user }: { session: any; user: any }) {
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          // Добавляем кастомные поля
+          role: user.email === 'admin@example.com' ? 'admin' : 'user',
+        },
+      };
+    },
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

@@ -1,15 +1,19 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '../../../../server/api/root';
+import { appRouter } from '~/server/api/root';
+import type { Context } from '~/server/context';
+
+const createContext = (): Context => ({
+  session: null,
+  user: null,
+  userId: undefined,
+});
 
 const handler = (req: Request) =>
   fetchRequestHandler({
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: () => ({
-      userId: undefined,
-      session: new Map(),
-    }),
+    createContext,
   });
 
 export { handler as GET, handler as POST };

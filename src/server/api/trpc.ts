@@ -1,20 +1,15 @@
 import { initTRPC, TRPCError } from '@trpc/server';
+import type { Context } from '~/server/context';
 
-interface CreateContextOptions {
-  userId?: string;
-  session?: Map<string, { userId: string }>;
-}
-
-export async function createContext(_opts: CreateContextOptions) {
-  return {
-    userId: _opts.userId,
-    session: _opts.session || new Map(),
-  };
-}
-
-export type Context = Awaited<ReturnType<typeof createContext>>;
-
-const trpc = initTRPC.context<Context>().create();
+export const trpc = initTRPC.context<Context>().create({
+  // SSE configuration for subscriptions
+  sse: {
+    ping: {
+      enabled: true,
+      intervalMs: 2000,
+    },
+  },
+});
 
 export const router = trpc.router;
 export const middleware = trpc.middleware;
@@ -24,7 +19,7 @@ export const protectedProcedure = trpc.procedure.use(
   async function isAuthed(opts) {
     const { ctx } = opts;
     
-    if (!ctx.userId) {
+    if (!ctx.user) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',
         message: 'You must be authenticated to perform this action',
@@ -34,7 +29,7 @@ export const protectedProcedure = trpc.procedure.use(
     return opts.next({
       ctx: {
         ...ctx,
-        userId: ctx.userId,
+        user: ctx.user,
       },
     });
   }

@@ -6,11 +6,10 @@
 
 - **TypeScript** - строгая типизация
 - **Next.js 16** (App Router) - фреймворк
-- **tRPC** - type-safe API
+- **tRPC** - type-safe API с SSE subscriptions для real-time
 - **Drizzle ORM** - ORM для PostgreSQL
-- **Better Auth** - аутентификация
+- **Better Auth** - аутентификация с кастомным адаптером
 - **PostgreSQL** (Neon) - база данных
-- **WebSocket** (ws) - real-time коммуникация
 - **Vitest** - тестирование
 
 ## 🎯 Описание игры
@@ -54,8 +53,8 @@ nback-game/
 │   │   │   ├── schema.ts       # Схема БД
 │   │   │   └── index.ts        # Клиент БД
 │   │   └── game/               # Игровая логика
-│   │       ├── nback-engine.ts # Ядро игры
-│   │       └── websocket.ts    # WebSocket сервер
+│   │       └── nback-engine.ts # Ядро игры
+│   └── context.ts              # tRPC контекст с auth
 │   └── trpc.ts                 # tRPC клиент
 ├── drizzle/                    # Миграции БД
 ├── tests/                      # Юнит-тесты
@@ -139,6 +138,7 @@ npm run test:coverage
 
 ### Game Router
 
+- `game.onGameUpdate` - Subscription для real-time обновлений игры (SSE)
 - `game.submitAnswer` - Отправить ответ
 - `game.nextStimulus` - Перейти к следующему стимулу
 - `game.getCurrentState` - Получить текущее состояние игры
@@ -164,28 +164,16 @@ const DEFAULT_CONFIG: GameConfig = {
 ### Почему выбрана каждая библиотека:
 
 #### tRPC vs GraphQL vs REST
-- **tRPC**: Type-safe, эндпоинты выводятся из кода, меньше бандл
+- **tRPC**: Type-safe, эндпоинты выводятся из кода, меньше бандл, встроенные subscriptions
 - **GraphQL**: Больше оверхеда, нужен schema-first подход
 - **REST**: Нет type-safety на клиенте
-- **Выбор**: tRPC - идеально для TypeScript проектов
+- **Выбор**: tRPC - идеально для TypeScript проектов с real-time потребностями
 
-#### Drizzle vs Prisma vs Kysely
-- **Drizzle**: Лёгкий, SQL-like синтаксис, отличная производительность
-- **Prisma**: Больше оверхеда, тяжёлый runtime
-- **Kysely**: Только query builder, нет миграций из коробки
-- **Выбор**: Drizzle - баланс между функциональностью и простотой
-
-#### Better Auth vs NextAuth vs Clerk
-- **Better Auth**: Современный, лёгкий, встроенная поддержка БД
-- **NextAuth (Auth.js)**: Сложнее настройка, больше зависимостей
-- **Clerk**: SaaS решение, меньше контроля
-- **Выбор**: Better Auth - простой и мощный
-
-#### ws vs Socket.io vs Pusher
-- **ws**: Минималистичный, быстрый, нет оверхеда
+#### SSE vs WebSocket vs Socket.io
+- **SSE (Server-Sent Events)**: Проще, работает через HTTP, автоматический переподключение, идеально для Vercel
+- **WebSocket**: Двусторонняя связь, но сложнее деплой на serverless
 - **Socket.io**: Много функций, но тяжёлый
-- **Pusher**: SaaS, платный при масштабе
-- **Выбор**: ws - достаточно для простой real-time логики
+- **Выбор**: SSE через tRPC subscriptions - работает на Vercel без проблем
 
 ## 🏆 Как играть
 
@@ -231,17 +219,11 @@ const DEFAULT_CONFIG: GameConfig = {
 3. Настройте Neon PostgreSQL
 4. Деплой
 
-### WebSocket на Vercel
-
-**Важно**: Vercel не поддерживает постоянные WebSocket соединения. Для production:
-- Используйте **Vercel Edge Functions** для HTTP
-- Вынесите WebSocket на отдельный сервер (Railway, Render, DigitalOcean)
-- Или используйте **Pusher** / **Ably** как managed solution
+**Примечание**: tRPC SSE subscriptions работают на Vercel без дополнительных настроек.
 
 ## 🐛 Known Issues
 
-- WebSocket сервер работает отдельно от Next.js (нужен отдельный порт 8080)
-- В development mode используйте оба сервера (Next.js + WebSocket)
+- In-memory room states - для production нужен Redis для масштабирования
 
 ## 📝 License
 

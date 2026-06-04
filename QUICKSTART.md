@@ -62,7 +62,7 @@ npm run test:coverage
 nback-game/
 ├── src/
 │   ├── app/                      # Страницы Next.js
-│   │   ├── api/trpc/             # tRPC endpoint
+│   │   ├── api/trpc/             # tRPC endpoint (HTTP + SSE)
 │   │   ├── room/[roomId]/        # Страница комнаты
 │   │   ├── dashboard/            # Дашборд
 │   │   └── page.tsx              # Главная
@@ -70,22 +70,24 @@ nback-game/
 │   │   ├── GameGrid.tsx          # Сетка 3×3
 │   │   ├── PlayerStats.tsx       # Статистика
 │   │   ├── GameControls.tsx      # Управление
-│   │   └── TrpcProvider.tsx      # tRPC провайдер
+│   │   └── TrpcProvider.tsx      # tRPC провайдер (с SSE support)
 │   ├── server/
 │   │   ├── api/                  # tRPC routers
 │   │   │   ├── routers/
-│   │   │   │   ├── game.ts       # Игровой router
+│   │   │   │   ├── game.ts       # Игровой router с subscriptions
 │   │   │   │   └── room.ts       # Комнатный router
 │   │   │   ├── root.ts           # Корневой router
-│   │   │   └── trpc.ts           # tRPC конфигурация
-│   │   ├── auth/                 # Better Auth
+│   │   │   └── trpc.ts           # tRPC конфигурация (SSE)
+│   │   ├── auth/                 # Better Auth с кастомным адаптером
 │   │   ├── db/
 │   │   │   ├── schema.ts         # Схема БД
 │   │   │   └── index.ts          # Клиент БД
-│   │   └── game/
-│   │       ├── nback-engine.ts   # Ядро игры
-│   │       └── websocket.ts      # WebSocket сервер
-│   └── trpc.ts                   # tRPC клиент
+│   │   ├── game/
+│   │   │   └── nback-engine.ts   # Ядро игры
+│   │   └── context.ts            # tRPC контекст с auth
+│   ├── hooks/
+│   │   └── useAuth.ts            # Auth hook
+│   └── trpc.ts                   # tRPC клиент (с SSE support)
 ├── drizzle/                      # Миграции
 ├── tests/                        # Юнит-тесты
 └── package.json
@@ -150,9 +152,8 @@ npm install
 
 ## 🎯 Следующие шаги
 
-1. Настройте WebSocket сервер для real-time игры (порт 8080)
-2. Подключите реальную базу данных (Neon PostgreSQL)
-3. Настройте аутентификацию Better Auth
-4. Разверните на Vercel/Railway
+1. Подключите реальную базу данных (Neon PostgreSQL)
+2. Настройте аутентификацию Better Auth
+3. Разверните на Vercel - SSE subscriptions работают из коробки
 
 Удачи в разработке! 🚀
