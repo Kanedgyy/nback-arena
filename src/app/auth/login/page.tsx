@@ -57,14 +57,14 @@ function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-white/90 mb-3 text-base font-semibold">Email адрес</label>
+              <label className="block text-white/90 mb-3 text-base font-semibold">Email или Имя</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-5 py-4 bg-white/10 border-2 border-white/20 rounded-xl text-white text-lg placeholder-white/40 focus:ring-4 focus:ring-pink-400/30 focus:border-pink-400 transition-all"
-                placeholder="example@email.com"
+                placeholder="example@email.com или username"
               />
             </div>
 

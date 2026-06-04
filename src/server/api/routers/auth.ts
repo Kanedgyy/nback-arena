@@ -14,40 +14,48 @@ export const authRouter = router({
 
   signIn: publicProcedure
     .input(z.object({
-      email: z.string().email(),
-      password: z.string().min(6),
+      email: z.string().min(1, 'Email or username is required'),
+      password: z.string().min(6, 'Password must be at least 6 characters'),
     }))
     .mutation(async ({ input }) => {
       try {
-        // Используем better-auth для входа
+        // Используем better-auth API для входа
         const result = await auth.api.signInEmail({
-          body: input,
+          body: {
+            email: input.email,
+            password: input.password,
+          },
           headers: new Headers(),
         });
+        
         return { user: result.user };
       } catch (error) {
         console.error('Sign in error:', error);
-        throw new Error('Invalid email or password');
+        throw new Error('Invalid email/username or password');
       }
     }),
 
   signUp: publicProcedure
     .input(z.object({
-      email: z.string().email(),
-      password: z.string().min(6),
-      name: z.string(),
+      email: z.string().email('Invalid email format'),
+      password: z.string().min(6, 'Password must be at least 6 characters'),
+      name: z.string().min(1, 'Name is required'),
     }))
     .mutation(async ({ input }) => {
       try {
         // Используем better-auth для регистрации
         const result = await auth.api.signUpEmail({
-          body: { ...input, name: input.name || 'User' },
+          body: {
+            email: input.email,
+            password: input.password,
+            name: input.name,
+          },
           headers: new Headers(),
         });
         return { user: result.user };
       } catch (error) {
         console.error('Sign up error:', error);
-        throw new Error('Registration failed');
+        throw new Error('Registration failed. Email may already be in use.');
       }
     }),
 });
