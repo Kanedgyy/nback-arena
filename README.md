@@ -61,6 +61,13 @@ nback-game/
 └── ...
 ```
 
+## 📚 Документация
+
+- [README.md](./README.md) - Основная документация
+- [QUICKSTART.md](./QUICKSTART.md) - Быстрый старт
+- [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) - Деплой на Vercel
+- [TESTING.md](./TESTING.md) - Тестирование
+
 ## 📦 Установка
 
 ### Требования
@@ -196,19 +203,89 @@ const DEFAULT_CONFIG: GameConfig = {
 
 ## 📊 Схема БД
 
-### Таблицы
+### Таблицы аутентификации (Better Auth)
 
 #### `users`
-- id, email, name, createdAt, updatedAt
+- `id` (uuid) - уникальный идентификатор
+- `email` (varchar) - email пользователя
+- `email_verified` (boolean) - подтверждён ли email
+- `name` (varchar) - имя пользователя
+- `image` (varchar) - URL аватара
+- `password` (varchar) - хеш пароля
+- `createdAt` (timestamp) - дата создания
+- `updatedAt` (timestamp) - дата обновления
+
+#### `sessions`
+- `id` (uuid) - уникальный идентификатор сессии
+- `userId` (uuid) - ссылка на пользователя
+- `expiresAt` (timestamp) - дата истечения сессии
+- `token` (varchar) - токен сессии
+- `ipAddress` (varchar) - IP адрес
+- `userAgent` (varchar) - User-Agent браузера
+- `createdAt` (timestamp) - дата создания
+- `updatedAt` (timestamp) - дата обновления
+
+#### `accounts`
+- `id` (uuid) - уникальный идентификатор
+- `userId` (uuid) - ссылка на пользователя
+- `accountId` (varchar) - ID аккаунта в провайдере
+- `providerId` (varchar) - ID провайдера (google, github, etc.)
+- `accessToken` (text) - access token
+- `refreshToken` (text) - refresh token
+- `accessTokenExpiresAt` (timestamp)
+- `refreshTokenExpiresAt` (timestamp)
+- `scope` (text) - permissions scope
+- `idToken` (text) - id token для OIDC
+- `password` (varchar) - хеш пароля (для email/password провайдера)
+- `createdAt` (timestamp)
+- `updatedAt` (timestamp)
+
+#### `verifications`
+- `id` (uuid) - уникальный идентификатор
+- `identifier` (varchar) - идентификатор (email, phone)
+- `value` (text) - значение для верификации
+- `expiresAt` (timestamp) - дата истечения
+- `createdAt` (timestamp)
+- `updatedAt` (timestamp)
+
+### Игровые таблицы
 
 #### `rooms`
-- id, name, hostId, nValue, maxPlayers, isStarted, createdAt, updatedAt
+- `id` (uuid) - уникальный идентификатор комнаты
+- `name` (varchar) - название комнаты
+- `hostId` (uuid) - создатель комнаты
+- `nValue` (integer) - N-значение для игры
+- `maxPlayers` (integer) - максимальное количество игроков
+- `isStarted` (boolean) - началась ли игра
+- `isTournament` (boolean) - турнирный режим
+- `tournamentRound` (integer) - текущий раунд турнира
+- `tournamentTotalRounds` (integer) - всего раундов в турнире
+- `tournamentResultsJson` (text) - результаты турнира (JSON)
+- `gameStateJson` (text) - состояние игры (JSON)
+- `createdAt` (timestamp)
+- `updatedAt` (timestamp)
 
 #### `room_players`
-- id, roomId, userId, score, mistakes, isReady, joinedAt
+- `id` (uuid) - уникальный идентификатор
+- `roomId` (uuid) - ссылка на комнату
+- `userId` (uuid) - ссылка на игрока
+- `score` (integer) - текущий счёт
+- `mistakes` (integer) - количество ошибок
+- `isReady` (boolean) - готов ли игрок
+- `isBot` (boolean) - бот ли это
+- `botDifficulty` (integer) - сложность бота (1-3)
+- `joinedAt` (timestamp) - дата присоединения
 
 #### `game_results`
-- id, roomId, userId, score, mistakes, correctAnswers, finalSpeed, rank, completedAt
+- `id` (uuid) - уникальный идентификатор
+- `roomId` (uuid) - ссылка на комнату
+- `userId` (uuid) - ссылка на игрока
+- `score` (integer) - финальный счёт
+- `mistakes` (integer) - количество ошибок
+- `correctAnswers` (integer) - правильных ответов
+- `finalSpeed` (integer) - финальная скорость (мс)
+- `rank` (integer) - место в игре
+- `completedAt` (timestamp) - дата завершения
 
 ## 🚀 Деплой
 
