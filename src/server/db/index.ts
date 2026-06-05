@@ -1,9 +1,8 @@
-import { neon, neonConfig } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import { drizzle, NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
-// Включаем кэш соединений для стабильности
-neonConfig.fetchConnectionCache = true;
+// fetchConnectionCache теперь всегда true по умолчанию (не нужно настраивать)
 
 type DbClient = NeonHttpDatabase<typeof schema>;
 
