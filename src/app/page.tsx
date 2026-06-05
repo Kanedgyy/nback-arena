@@ -195,7 +195,7 @@ function AuthPage() {
 
           {/* Footer */}
           <div className="text-center mt-8 text-white/70 text-sm">
-            <p>© 2024 N-Back Arena. Тренируй мозг!</p>
+            
           </div>
         </div>
       </div>
