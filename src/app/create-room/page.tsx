@@ -83,12 +83,12 @@ function CreateRoomForm() {
                 <select
                   value={nValue}
                   onChange={(e) => setNValue(Number(e.target.value))}
-                  className="w-full px-5 py-4 bg-white/15 border-2 border-white/20 rounded-xl text-white text-lg font-semibold focus:ring-4 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+                  className="w-full px-5 py-4 bg-cyan-900/90 border-2 border-white/20 rounded-xl text-white text-lg font-semibold focus:ring-4 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all cursor-pointer"
                 >
-                  <option value={1} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">1-Back (Легко)</option>
-                  <option value={2} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">2-Back (Средне)</option>
-                  <option value={3} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">3-Back (Сложно)</option>
-                  <option value={4} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">4-Back (Эксперт)</option>
+                  <option value={1} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>1-Back (Легко)</option>
+                  <option value={2} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>2-Back (Средне)</option>
+                  <option value={3} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>3-Back (Сложно)</option>
+                  <option value={4} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>4-Back (Эксперт)</option>
                 </select>
               </div>
             )}
@@ -98,13 +98,13 @@ function CreateRoomForm() {
               <select
                 value={maxPlayers}
                 onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                className="w-full px-5 py-4 bg-white/15 border-2 border-white/20 rounded-xl text-white text-lg font-semibold focus:ring-4 focus:ring-rose-400/30 focus:border-rose-400 transition-all"
+                className="w-full px-5 py-4 bg-rose-900/90 border-2 border-white/20 rounded-xl text-white text-lg font-semibold focus:ring-4 focus:ring-rose-400/30 focus:border-rose-400 transition-all cursor-pointer"
               >
-                <option value={2} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">2 игрока</option>
-                <option value={3} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">3 игрока</option>
-                <option value={4} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">4 игрока</option>
-                <option value={5} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">5 игроков</option>
-                <option value={6} className="bg-gradient-to-r from-pink-500 to-cyan-500 text-white">6 игроков</option>
+                <option value={2} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>2 игрока</option>
+                <option value={3} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>3 игрока</option>
+                <option value={4} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>4 игрока</option>
+                <option value={5} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>5 игроков</option>
+                <option value={6} style={{ backgroundColor: '#1e3a5f', color: 'white' }}>6 игроков</option>
               </select>
             </div>
 
